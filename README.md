@@ -45,23 +45,63 @@ Build a real-time artifact rejection module that sits in the signal processing p
 
 Building this as a **tap** for the [Science Corp Synapse](https://science.xyz) tech stack. A tap intercepts the live data stream in the Synapse pipeline, applies artifact detection and rejection logic, and forwards the cleaned signal to downstream consumers — with no changes required to the rest of the stack.
 
+### Detection pipeline
+
+We run two detectors in parallel on each 100ms window of broadband data:
+
+1. **MAD (Median Absolute Deviation)** — adaptive, per-channel amplitude detector. Flags a channel if any sample exceeds `threshold × MAD` from the channel median. Catches saturating spikes and flatlined (disconnected) electrodes. Unlike a fixed threshold, MAD scales automatically with the signal's own noise floor — no recalibration needed across different rigs or subjects.
+
+2. **FFT 60 Hz detector** — spectral detector for line noise. Computes the mean FFT magnitude across all channels and flags the window if the 60 Hz bin power exceeds 5× the average power of neighboring bins. Catches sinusoidal interference that amplitude detectors miss entirely.
+
+### Baseline comparison
+
+We compare against the **industry standard**: a fixed amplitude threshold. If any sample exceeds a hardcoded value, reject the window. Simple, fast, widely used — but brittle. It requires manual recalibration for every new signal range, and cannot detect 60 Hz noise at all.
+
+## Results
+
+On synthetic Gaussian neural signal (32 channels, 30 kHz, std=150 μV) with 18% of windows corrupted:
+
+| Detector | Precision | Recall | Clean signal preserved |
+|---|---|---|---|
+| **Ours (MAD + FFT)** | **100%** | **100%** | **82%** |
+| Fixed threshold | 17.5% | 100% | 0% |
+
+The fixed threshold over-suppresses — it blanks 100% of windows because it can't adapt to the signal's amplitude range. Our method surgically removes only artifact windows.
+
 ## Usage
 
+### Live tap (requires Synapse simulator)
+
 ```bash
-# Install dependencies (use a dedicated env)
+# Install dependencies
 pip install -r client/requirements.txt
 
 # Start the Synapse simulator
 synapse-sim --iface-ip 127.0.0.1
 
-# Run the artifact rejection tap
+# Run the artifact rejection tap (terminal output)
 python3 client/artifact_reject.py --device-ip 127.0.0.1
+
+# Or use the one-command launcher
+./run.sh            # live visualization, no artifacts
+./run.sh --inject   # live visualization with injected artifacts
+./run.sh --cli      # terminal output only (no plot window)
 ```
 
-## Status
+### Demo notebook (no simulator needed)
 
-Working Python tap with amplitude and flatline artifact detection against the Synapse simulator.
+The notebook runs entirely locally on synthetic data — no Synapse device or simulator required.
 
----
+```bash
+# Install dependencies (Jupyter + numpy + matplotlib)
+pip install jupyter numpy matplotlib
 
-*This README was one-shotted by Claude at the start of the hackathon.*
+# Open the notebook
+jupyter notebook notebook/demo.ipynb
+```
+
+> **Note:** The notebook imports detector functions from `client/artifact_reject.py`, which in turn imports the `synapse` Python package. Install it with:
+> ```bash
+> pip install science-synapse
+> ```
+> Or follow the [synapse-python setup instructions](https://github.com/sciencecorp/synapse-python) to install from source.
