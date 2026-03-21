@@ -143,10 +143,13 @@ def detect_60hz(window: np.ndarray, sample_rate: int = SAMPLE_RATE_HZ,
 
     idx_60  = int(np.argmin(np.abs(freqs - 60)))
     # Neighboring bins: ±10 bins away, excluding ±2 immediately adjacent to 60Hz
-    neighbors = (
-        list(range(max(0, idx_60 - 10), max(0, idx_60 - 2))) +
-        list(range(min(len(freqs), idx_60 + 3), min(len(freqs), idx_60 + 11)))
-    )
+    # and excluding bin 0 (DC) which dominates and skews the average
+    neighbors = [
+        i for i in (
+            list(range(max(1, idx_60 - 10), max(1, idx_60 - 2))) +
+            list(range(min(len(freqs), idx_60 + 3), min(len(freqs), idx_60 + 11)))
+        )
+    ]
     if not neighbors:
         return False, 0.0
 
