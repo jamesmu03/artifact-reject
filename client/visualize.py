@@ -21,9 +21,6 @@ import matplotlib.pyplot as plt
 import matplotlib.animation
 import matplotlib.gridspec as gridspec
 import numpy as np
-import synapse as syn
-from synapse.client.taps import Tap
-
 # Import pipeline from sibling module
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 from artifact_reject import (
@@ -64,6 +61,9 @@ stats = {"ours_tp": 0, "ours_fp": 0, "fix_tp": 0, "fix_fp": 0, "total": 0}
 # ---------------------------------------------------------------------------
 
 def tap_worker(uri: str, inject: bool) -> None:
+    import synapse as syn
+    from synapse.client.taps import Tap
+
     rng    = np.random.default_rng()
     device = syn.Device(uri)
     configure_device(device)
@@ -247,6 +247,8 @@ args = parse_args()
 
 
 def main():
+    import synapse as syn
+
     uri = f"{args.device_ip}:647"
 
     # Verify device is reachable

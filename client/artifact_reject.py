@@ -19,9 +19,6 @@ import time
 from collections import deque
 
 import numpy as np
-import synapse as syn
-from synapse.api.datatype_pb2 import BroadbandFrame
-from synapse.client.taps import Tap
 
 # ---------------------------------------------------------------------------
 # Config
@@ -176,7 +173,8 @@ def detect_fixed_threshold(window: np.ndarray, threshold: float = FIXED_THRESHOL
 # Device setup
 # ---------------------------------------------------------------------------
 
-def configure_device(device: syn.Device) -> None:
+def configure_device(device) -> None:
+    import synapse as syn
     channels = [
         syn.Channel(id=i, electrode_id=i * 2, reference_id=i * 2 + 1)
         for i in range(N_CHANNELS)
@@ -202,6 +200,7 @@ def configure_device(device: syn.Device) -> None:
 
 def parse_frame(raw: bytes) -> np.ndarray | None:
     """Deserialize a BroadbandFrame → (n_channels,) sample array."""
+    from synapse.api.datatype_pb2 import BroadbandFrame
     frame = BroadbandFrame()
     frame.ParseFromString(raw)
     if not frame.frame_data:
@@ -224,6 +223,9 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    import synapse as syn
+    from synapse.client.taps import Tap
+
     args = parse_args()
     uri  = f"{args.device_ip}:647"
     rng  = np.random.default_rng()
