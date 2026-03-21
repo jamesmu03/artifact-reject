@@ -41,8 +41,9 @@ FIXED_THRESHOLD         = 3500   # flag if any sample exceeds this raw value
 
 # Artifact injection
 INJECT_PROB             = 0.30   # probability a window gets an artifact injected
-SPIKE_AMPLITUDE         = 4000   # spike value (well above threshold)
+SPIKE_AMPLITUDE         = 10000  # saturating spike (exceeds 12-bit range, like a real stim artifact)
 NOISE_60HZ_AMPLITUDE    = 800    # 60 Hz sinusoidal noise amplitude
+SPECTRAL_60HZ_RATIO     = 5.0    # flag if 60Hz bin power > N * neighboring bin power
 
 
 # ---------------------------------------------------------------------------
@@ -129,6 +130,35 @@ def detect_mad(window: np.ndarray, threshold: float = MAD_THRESHOLD) -> tuple[bo
     return len(flagged) > 0, flagged
 
 
+def detect_60hz(window: np.ndarray, sample_rate: int = SAMPLE_RATE_HZ,
+                ratio: float = SPECTRAL_60HZ_RATIO) -> tuple[bool, float]:
+    """Spectral detector for 60 Hz line noise.
+
+    Computes the mean FFT magnitude across all channels, then checks whether
+    the power at 60 Hz exceeds `ratio` times the average power of neighboring
+    frequency bins. Returns (artifact_detected, power_ratio).
+    """
+    freqs   = np.fft.rfftfreq(window.shape[1], d=1.0 / sample_rate)
+    fft_mag = np.mean(np.abs(np.fft.rfft(window, axis=1)), axis=0)
+
+    idx_60  = int(np.argmin(np.abs(freqs - 60)))
+    # Neighboring bins: ±10 bins away, excluding ±2 immediately adjacent to 60Hz
+    neighbors = (
+        list(range(max(0, idx_60 - 10), max(0, idx_60 - 2))) +
+        list(range(min(len(freqs), idx_60 + 3), min(len(freqs), idx_60 + 11)))
+    )
+    if not neighbors:
+        return False, 0.0
+
+    neighbor_power = float(np.mean(fft_mag[neighbors]))
+    target_power   = float(fft_mag[idx_60])
+    if neighbor_power == 0:
+        return False, 0.0
+
+    power_ratio = target_power / neighbor_power
+    return power_ratio > ratio, power_ratio
+
+
 def detect_fixed_threshold(window: np.ndarray, threshold: float = FIXED_THRESHOLD) -> tuple[bool, list[int]]:
     """Industry baseline: fixed amplitude cutoff.
 
@@ -210,13 +240,12 @@ def main() -> None:
         sys.exit(1)
 
     print(f"Streaming '{TAP_NAME}' | window={WINDOW_MS}ms | inject={args.inject}\n")
-    print(f"{'Win':>5}  {'Injected':<10}  {'MAD':^14}  {'Threshold':^14}  {'Agreement'}")
-    print("-" * 65)
+    print(f"{'Win':>5}  {'Injected':<10}  {'Ours (MAD+FFT)':^18}  {'Fixed Threshold':^18}  {'Match'}")
+    print("-" * 75)
 
     buf = SignalBuffer(N_CHANNELS, WINDOW_SAMPLES)
 
-    # Comparison counters
-    total = mad_tp = mad_fp = thresh_tp = thresh_fp = 0
+    total = ours_tp = ours_fp = thresh_tp = thresh_fp = 0
     start = time.time()
 
     try:
@@ -238,26 +267,38 @@ def main() -> None:
             if args.inject and rng.random() < INJECT_PROB:
                 window, injected_type = inject_artifact(window, rng)
 
-            # Run both detectors
-            mad_hit,   mad_chs   = detect_mad(window)
+            # Our pipeline: MAD (spikes + flatlines) + FFT (60Hz)
+            mad_hit,    mad_chs    = detect_mad(window)
+            hz60_hit,   hz60_ratio = detect_60hz(window)
+            ours_hit = mad_hit or hz60_hit
+
+            # Industry baseline
             fixed_hit, fixed_chs = detect_fixed_threshold(window)
 
             total += 1
             ground_truth = injected_type is not None
 
             if ground_truth:
-                if mad_hit:   mad_tp   += 1
+                if ours_hit:  ours_tp   += 1
                 if fixed_hit: thresh_tp += 1
             else:
-                if mad_hit:   mad_fp   += 1
+                if ours_hit:  ours_fp   += 1
                 if fixed_hit: thresh_fp += 1
 
             injected_label = injected_type or "—"
-            mad_label      = f"{'HIT' if mad_hit else 'miss'} (ch={mad_chs})" if mad_hit else "miss"
-            fixed_label    = f"{'HIT' if fixed_hit else 'miss'} (ch={fixed_chs})" if fixed_hit else "miss"
-            agree          = "✓" if mad_hit == fixed_hit else "✗ differ"
 
-            print(f"{total:>5}  {injected_label:<10}  {mad_label:<14}  {fixed_label:<14}  {agree}")
+            if ours_hit:
+                reasons = []
+                if mad_hit:  reasons.append(f"MAD ch={mad_chs}")
+                if hz60_hit: reasons.append(f"60Hz({hz60_ratio:.1f}x)")
+                ours_label = f"HIT [{','.join(reasons)}]"
+            else:
+                ours_label = "miss"
+
+            fixed_label = f"HIT (ch={fixed_chs})" if fixed_hit else "miss"
+            match       = "✓" if ours_hit == fixed_hit else "✗"
+
+            print(f"{total:>5}  {injected_label:<10}  {ours_label:<20}  {fixed_label:<20}  {match}")
 
             if (time.time() - start) >= args.duration:
                 break
@@ -269,11 +310,12 @@ def main() -> None:
         device.stop()
 
     # Summary
-    print("\n" + "=" * 65)
-    print(f"Windows evaluated: {total}  |  Injection rate: {INJECT_PROB*100:.0f}%")
-    print(f"\n{'Detector':<20} {'True Pos':>10} {'False Pos':>10}")
-    print(f"{'MAD (ours)':<20} {mad_tp:>10} {mad_fp:>10}")
-    print(f"{'Fixed threshold':<20} {thresh_tp:>10} {thresh_fp:>10}")
+    print("\n" + "=" * 75)
+    print(f"Windows: {total}  |  Injection rate: {INJECT_PROB*100:.0f}%")
+    print(f"\n{'Detector':<25} {'True Pos':>10} {'False Pos':>10} {'Precision':>10}")
+    for label, tp, fp in [("Ours (MAD+FFT)", ours_tp, ours_fp), ("Fixed threshold", thresh_tp, thresh_fp)]:
+        precision = tp / (tp + fp) if (tp + fp) > 0 else float("nan")
+        print(f"{label:<25} {tp:>10} {fp:>10} {precision:>10.1%}")
 
 
 if __name__ == "__main__":
