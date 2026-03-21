@@ -45,9 +45,22 @@ Build a real-time artifact rejection module that sits in the signal processing p
 
 Building this as a **tap** for the [Science Corp Synapse](https://science.xyz) tech stack. A tap intercepts the live data stream in the Synapse pipeline, applies artifact detection and rejection logic, and forwards the cleaned signal to downstream consumers — with no changes required to the rest of the stack.
 
+## Usage
+
+```bash
+# Install dependencies (use a dedicated env)
+pip install -r client/requirements.txt
+
+# Start the Synapse simulator
+synapse-sim --iface-ip 127.0.0.1
+
+# Run the artifact rejection tap
+python3 client/artifact_reject.py --device-ip 127.0.0.1
+```
+
 ## Status
 
-Early ideation — architecture and implementation TBD.
+Working Python tap with amplitude and flatline artifact detection against the Synapse simulator.
 
 ---
 
