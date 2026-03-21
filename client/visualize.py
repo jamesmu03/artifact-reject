@@ -24,7 +24,7 @@ import numpy as np
 # Import pipeline from sibling module
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 from artifact_reject import (
-    N_CHANNELS, WINDOW_SAMPLES, INJECT_PROB,
+    N_CHANNELS, WINDOW_SAMPLES, SAMPLE_RATE_HZ, INJECT_PROB,
     SignalBuffer, configure_device, parse_frame,
     inject_artifact, detect_mad, detect_60hz, detect_fixed_threshold,
 )
@@ -33,9 +33,10 @@ from artifact_reject import (
 # Viz config
 # ---------------------------------------------------------------------------
 DISPLAY_CH      = 0      # channel to plot
-DISPLAY_WINDOWS = 12     # number of windows visible at once
+DISPLAY_WINDOWS = 40     # number of windows visible at once (~4 seconds)
 DOWNSAMPLE      = 15     # plot every Nth sample (for performance)
-REFRESH_MS      = 80     # matplotlib animation interval
+REFRESH_MS      = 200    # matplotlib animation interval
+DC_OFFSET       = 2048.0 # simulator 12-bit ADC midpoint; subtract to center signal
 
 DISPLAY_SAMPLES = DISPLAY_WINDOWS * WINDOW_SAMPLES // DOWNSAMPLE
 
@@ -47,13 +48,15 @@ TAP_NAME = "broadband_source_sim"
 data_q: queue.Queue = queue.Queue(maxsize=30)
 
 # Rolling display buffers (one entry per downsampled sample)
-raw_buf     = np.zeros(DISPLAY_SAMPLES)
-ours_buf    = np.zeros(DISPLAY_SAMPLES)
-fixed_buf   = np.zeros(DISPLAY_SAMPLES)
-color_buf   = np.zeros(DISPLAY_SAMPLES)   # 0=clean, 1=our-hit, 2=fixed-hit
+raw_buf      = np.zeros(DISPLAY_SAMPLES)
+ours_buf     = np.zeros(DISPLAY_SAMPLES)
+fixed_buf    = np.zeros(DISPLAY_SAMPLES)
+gt_buf       = np.zeros(DISPLAY_SAMPLES)   # 1 = ground-truth artifact window
+ours_hit_buf = np.zeros(DISPLAY_SAMPLES)   # 1 = our detector fired
+fix_hit_buf  = np.zeros(DISPLAY_SAMPLES)   # 1 = fixed threshold fired
 
 # Stats
-stats = {"ours_tp": 0, "ours_fp": 0, "fix_tp": 0, "fix_fp": 0, "total": 0}
+stats = {"ours_tp": 0, "ours_fp": 0, "ours_fn": 0, "fix_tp": 0, "fix_fp": 0, "fix_fn": 0, "total": 0}
 
 
 # ---------------------------------------------------------------------------
@@ -118,7 +121,9 @@ def update_stats(ground_truth: bool, ours_hit: bool, fixed_hit: bool) -> None:
     stats["total"] += 1
     if ground_truth:
         if ours_hit:  stats["ours_tp"] += 1
+        else:         stats["ours_fn"] += 1
         if fixed_hit: stats["fix_tp"]  += 1
+        else:         stats["fix_fn"]  += 1
     else:
         if ours_hit:  stats["ours_fp"] += 1
         if fixed_hit: stats["fix_fp"]  += 1
@@ -127,13 +132,16 @@ def update_stats(ground_truth: bool, ours_hit: bool, fixed_hit: bool) -> None:
 def precision(tp: int, fp: int) -> str:
     return f"{tp/(tp+fp)*100:.0f}%" if (tp + fp) > 0 else "—"
 
+def recall(tp: int, fn: int) -> str:
+    return f"{tp/(tp+fn)*100:.0f}%" if (tp + fn) > 0 else "—"
+
 
 def make_update(lines, spans, axes):
     raw_line, ours_line, fixed_line = lines
     raw_ax, ours_ax, fixed_ax = axes
 
     def update(_frame):
-        global raw_buf, ours_buf, fixed_buf, color_buf
+        global raw_buf, ours_buf, fixed_buf, gt_buf, ours_hit_buf, fix_hit_buf
 
         # Drain the queue
         changed = False
@@ -150,18 +158,22 @@ def make_update(lines, spans, axes):
 
             update_stats(ground_truth, ours_hit, fixed_hit)
 
-            # Downsample
-            ds = signal[::DOWNSAMPLE]
+            # Downsample and remove DC offset so signal is centered at zero
+            ds = signal[::DOWNSAMPLE] - DC_OFFSET
             n  = len(ds)
 
             # Shift buffers left
-            raw_buf   = np.roll(raw_buf,   -n)
-            ours_buf  = np.roll(ours_buf,  -n)
-            fixed_buf = np.roll(fixed_buf, -n)
-            color_buf = np.roll(color_buf, -n)
+            raw_buf      = np.roll(raw_buf,      -n)
+            ours_buf     = np.roll(ours_buf,     -n)
+            fixed_buf    = np.roll(fixed_buf,    -n)
+            gt_buf       = np.roll(gt_buf,       -n)
+            ours_hit_buf = np.roll(ours_hit_buf, -n)
+            fix_hit_buf  = np.roll(fix_hit_buf,  -n)
 
-            raw_buf[-n:]   = ds
-            color_buf[-n:] = (1 if ours_hit else 0) + (2 if fixed_hit and not ours_hit else 0)
+            raw_buf[-n:]      = ds
+            gt_buf[-n:]       = 1.0 if ground_truth else 0.0
+            ours_hit_buf[-n:] = 1.0 if ours_hit else 0.0
+            fix_hit_buf[-n:]  = 1.0 if fixed_hit else 0.0
 
             # Our cleaned output: zero artifact windows
             ours_buf[-n:] = 0.0 if ours_hit else ds
@@ -192,19 +204,16 @@ def make_update(lines, spans, axes):
         for w in range(DISPLAY_WINDOWS):
             start = w * win_ds
             end   = start + win_ds
-            chunk = color_buf[start:end]
-            is_artifact = np.any(chunk > 0)
-            is_fixed    = np.any(chunk >= 1)
 
-            if is_artifact:
+            if np.any(gt_buf[start:end] > 0):
                 spans[0].append(raw_ax.axvspan(start, end, color="#e74c3c", alpha=0.25))
-            if is_artifact:
+            if np.any(ours_hit_buf[start:end] > 0):
                 spans[1].append(ours_ax.axvspan(start, end, color="#e74c3c", alpha=0.15))
-            if is_fixed:
-                spans[2].append(fixed_ax.axvspan(start, end, color="#e67e22", alpha=0.25))
+            if np.any(fix_hit_buf[start:end] > 0):
+                spans[2].append(fixed_ax.axvspan(start, end, color="#e74c3c", alpha=0.25))
 
         # Update titles with live stats
-        tp, fp = stats["ours_tp"], stats["ours_fp"]
+        tp, fp, fn = stats["ours_tp"], stats["ours_fp"], stats["ours_fn"]
         raw_ax.set_title(
             f"Raw Signal (channel {DISPLAY_CH})  —  "
             f"{'Injection ON' if args.inject else 'No injection'}",
@@ -212,19 +221,15 @@ def make_update(lines, spans, axes):
         )
         ours_ax.set_title(
             f"Ours (MAD + FFT)  |  "
-            f"TP={tp}  FP={fp}  Precision={precision(tp, fp)}",
+            f"TP={tp}  FP={fp}  FN={fn}  Precision={precision(tp, fp)}  Recall={recall(tp, fn)}",
             color="#2ecc71", fontsize=11
         )
-        ftp, ffp = stats["fix_tp"], stats["fix_fp"]
+        ftp, ffp, ffn = stats["fix_tp"], stats["fix_fp"], stats["fix_fn"]
         fixed_ax.set_title(
             f"Fixed Threshold  |  "
-            f"TP={ftp}  FP={ffp}  Precision={precision(ftp, ffp)}",
-            color="#e67e22", fontsize=11
+            f"TP={ftp}  FP={ffp}  FN={ffn}  Precision={precision(ftp, ffp)}  Recall={recall(ftp, ffn)}",
+            color="#e74c3c", fontsize=11
         )
-
-        for ax in axes:
-            ax.relim()
-            ax.autoscale_view(scalex=False)
 
         return lines
 
@@ -277,14 +282,27 @@ def main():
     colors = ["#ecf0f1", "#2ecc71", "#e67e22"]
     labels = ["Raw", "Ours (MAD+FFT)", "Fixed Threshold"]
 
+    # X-axis: each display sample = DOWNSAMPLE / SAMPLE_RATE_HZ seconds
+    ms_per_sample = DOWNSAMPLE / SAMPLE_RATE_HZ * 1000        # 0.5 ms per display sample
+    tick_interval_s = 1.0
+    tick_positions = np.arange(0, DISPLAY_SAMPLES + 1, int(tick_interval_s * 1000 / ms_per_sample))
+    tick_labels = [f"{int((DISPLAY_SAMPLES - p) * ms_per_sample / 1000)}s" for p in tick_positions]
+    tick_labels[-1] = "now"
+
     lines = []
-    for ax, color, label in zip(axes, colors, labels):
+    for i, (ax, color, label) in enumerate(zip(axes, colors, labels)):
         ax.set_facecolor("#161b22")
         ax.tick_params(colors="#555")
         for spine in ax.spines.values():
             spine.set_edgecolor("#30363d")
         ax.set_xlim(0, DISPLAY_SAMPLES)
-        ax.set_xticks([])
+        ax.set_ylim(-2500, 2500)
+        ax.set_ylabel("μV", fontsize=9, color="#777")
+        if i < 2:
+            ax.set_xticks([])
+        else:
+            ax.set_xticks(tick_positions)
+            ax.set_xticklabels(tick_labels, fontsize=8, color="#777")
         line, = ax.plot([], [], color=color, linewidth=0.8, label=label)
         lines.append(line)
 

@@ -34,7 +34,7 @@ WINDOW_SAMPLES          = int(SAMPLE_RATE_HZ * WINDOW_MS / 1000)    # 3000 sampl
 MAD_THRESHOLD           = 6.0    # flag channel if any sample > N * MAD
 
 # Fixed threshold detector (industry baseline — 12-bit signal, max = 4095)
-FIXED_THRESHOLD         = 3500   # flag if any sample exceeds this raw value
+FIXED_THRESHOLD         = 5000   # flag if any sample exceeds this raw value
 
 # Artifact injection
 INJECT_PROB             = 0.30   # probability a window gets an artifact injected
