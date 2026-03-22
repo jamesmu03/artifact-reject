@@ -152,7 +152,6 @@ body {
     border-radius: 8px;
     overflow: hidden;
     min-height: 0;
-    transition: opacity 0.3s;
 }
 
 .trace-wrap canvas {
@@ -181,7 +180,7 @@ body {
     color: var(--text-secondary);
 }
 
-/* ===== Mouse panel ===== */
+/* ===== Mouse/Keyboard panel ===== */
 #mouse-panel {
     position: absolute;
     bottom: 0;
@@ -189,17 +188,21 @@ body {
     right: 0;
     background: var(--bg-primary);
     border-top: 1px solid var(--border);
+    z-index: 10;
     transition: height 0.4s ease;
     overflow: hidden;
-    z-index: 10;
 }
 
 #mouse-panel.collapsed {
     height: 40px;
 }
 
+#mouse-panel.collapsed #mouse-content {
+    display: none;
+}
+
 #mouse-panel.expanded {
-    height: calc(100vh - 44px - 33.33vh);
+    height: calc(66vh - 30px);
 }
 
 #mouse-toggle-bar {
@@ -233,46 +236,192 @@ body {
     padding: 16px 24px;
 }
 
-.mouse-panels-row {
-    display: flex;
-    gap: 24px;
-    height: 100%;
-    width: 100%;
-    max-width: 1200px;
-}
-
-.mouse-card {
-    flex: 1;
+/* ===== Keyboard demo ===== */
+#keyboard-demo {
     display: flex;
     flex-direction: column;
-    background: var(--bg-card);
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    max-width: 600px;
+    padding: 8px 0;
+}
+
+#kb-header {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.kb-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-right: 8px;
+}
+
+.mode-switch {
+    display: flex;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 6px;
     overflow: hidden;
 }
 
-.mouse-card canvas {
-    flex: 1;
-    width: 100%;
-    cursor: crosshair;
-}
-
-.mouse-title {
+.mode-btn {
+    padding: 6px 16px;
     font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--border);
-    font-weight: 500;
-}
-
-.mouse-subtitle {
-    font-size: 12px;
+    font-family: var(--font-main);
+    background: none;
+    border: none;
     color: var(--text-secondary);
-    padding: 8px 14px;
-    text-align: center;
-    min-height: 32px;
-    transition: opacity 0.3s;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mode-btn:first-child { border-right: 1px solid var(--border); }
+
+.mode-btn.active { color: #000; }
+#mode-ours.active { background: var(--green); }
+#mode-baseline.active { background: var(--red); }
+
+/* Keyboard area: relative container for cursor overlay */
+#kb-area {
+    position: relative;
+    cursor: none;
+    padding: 16px;
+    user-select: none;
+}
+
+/* Trail canvas overlaid on keyboard */
+#trail-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 5;
+}
+
+#kb-grid {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.kb-row {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+}
+
+.kb-key {
+    width: 44px;
+    height: 44px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 16px;
+    font-weight: 500;
+    font-family: var(--font-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.kb-key.hover { border-color: var(--text-secondary); background: #1c2333; }
+.kb-key.flash-correct { background: rgba(46,204,113,0.3); border-color: var(--green); }
+.kb-key.flash-wrong { background: rgba(231,76,60,0.3); border-color: var(--red); }
+.kb-key-wide { width: 64px; }
+
+/* BCI cursor dot — visibility controlled by JS mouseenter/leave */
+#bci-cursor {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px rgba(46,204,113,0.4);
+    pointer-events: none;
+    z-index: 20;
+    transform: translate(-50%, -50%);
+    transition: background 0.2s, box-shadow 0.2s;
+}
+
+#bci-cursor.displaced {
+    background: var(--red);
+    box-shadow: 0 0 12px rgba(231,76,60,0.5);
+}
+
+/* Footer */
+#kb-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+#kb-output {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+#kb-typed {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    letter-spacing: 3px;
+}
+
+#kb-typed .char-correct { color: var(--text-primary); }
+#kb-typed .char-wrong { color: var(--red); }
+
+.kb-cursor-blink {
+    color: var(--text-primary);
+    animation: blink 1s step-end infinite;
+    font-family: var(--font-mono);
+}
+
+@keyframes blink { 50% { opacity: 0; } }
+
+#kb-clear {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: var(--font-main);
+    margin-left: 12px;
+}
+
+#kb-status {
+    font-size: 12px;
+    min-height: 18px;
+}
+
+/* Pulsing red dot when artifact is active */
+.artifact-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--red);
+    animation: pulse-red 0.5s ease-in-out infinite alternate;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+@keyframes pulse-red {
+    from { opacity: 0.5; }
+    to { opacity: 1; }
 }
 </style>
 </head>
@@ -320,7 +469,7 @@ body {
     </div>
 </div>
 
-<!-- Expandable Mouse Panel -->
+<!-- Expandable Keyboard Panel -->
 <div id="mouse-panel" class="collapsed">
     <div id="mouse-toggle-bar" onclick="toggleMousePanel()">
         <span id="mouse-toggle-icon">▲</span>
@@ -328,16 +477,72 @@ body {
         <span class="key-hint">[p]</span>
     </div>
     <div id="mouse-content">
-        <div class="mouse-panels-row">
-            <div class="mouse-card">
-                <div class="mouse-title" style="color:var(--red);">Without artifact rejection</div>
-                <canvas id="mouse-left-canvas"></canvas>
-                <div class="mouse-subtitle" id="mouse-left-sub">Move your mouse anywhere</div>
+        <div id="keyboard-demo">
+            <!-- Mode toggle -->
+            <div id="kb-header">
+                <div id="kb-mode-toggle">
+                    <span class="kb-label">Mode:</span>
+                    <div class="mode-switch">
+                        <button id="mode-baseline" class="mode-btn active" onclick="setMode('baseline')">Baseline</button>
+                        <button id="mode-ours" class="mode-btn" onclick="setMode('ours')">Ours</button>
+                    </div>
+                </div>
             </div>
-            <div class="mouse-card">
-                <div class="mouse-title" style="color:var(--green);">With artifact rejection</div>
-                <canvas id="mouse-right-canvas"></canvas>
-                <div class="mouse-subtitle" id="mouse-right-sub">Move your mouse anywhere</div>
+
+            <!-- Keyboard with cursor overlay -->
+            <div id="kb-area">
+                <div id="kb-grid">
+                    <div class="kb-row">
+                        <div class="kb-key" data-char="Q">Q</div>
+                        <div class="kb-key" data-char="W">W</div>
+                        <div class="kb-key" data-char="E">E</div>
+                        <div class="kb-key" data-char="R">R</div>
+                        <div class="kb-key" data-char="T">T</div>
+                        <div class="kb-key" data-char="Y">Y</div>
+                        <div class="kb-key" data-char="U">U</div>
+                        <div class="kb-key" data-char="I">I</div>
+                        <div class="kb-key" data-char="O">O</div>
+                        <div class="kb-key" data-char="P">P</div>
+                    </div>
+                    <div class="kb-row" style="padding-left: 22px;">
+                        <div class="kb-key" data-char="A">A</div>
+                        <div class="kb-key" data-char="S">S</div>
+                        <div class="kb-key" data-char="D">D</div>
+                        <div class="kb-key" data-char="F">F</div>
+                        <div class="kb-key" data-char="G">G</div>
+                        <div class="kb-key" data-char="H">H</div>
+                        <div class="kb-key" data-char="J">J</div>
+                        <div class="kb-key" data-char="K">K</div>
+                        <div class="kb-key" data-char="L">L</div>
+                    </div>
+                    <div class="kb-row" style="padding-left: 44px;">
+                        <div class="kb-key" data-char="Z">Z</div>
+                        <div class="kb-key" data-char="X">X</div>
+                        <div class="kb-key" data-char="C">C</div>
+                        <div class="kb-key" data-char="V">V</div>
+                        <div class="kb-key" data-char="B">B</div>
+                        <div class="kb-key" data-char="N">N</div>
+                        <div class="kb-key" data-char="M">M</div>
+                        <div class="kb-key kb-key-wide" data-char="BACK">⌫</div>
+                    </div>
+                </div>
+
+                <!-- BCI cursor dot -->
+                <div id="bci-cursor" style="display:none;"></div>
+
+                <!-- Trail canvas -->
+                <canvas id="trail-canvas"></canvas>
+            </div>
+
+            <!-- Output + status -->
+            <div id="kb-footer">
+                <div id="kb-output">
+                    <span class="kb-label">Typed:</span>
+                    <span id="kb-typed"></span>
+                    <span class="kb-cursor-blink">|</span>
+                    <button id="kb-clear" onclick="clearTyped()">Clear</button>
+                </div>
+                <div id="kb-status"></div>
             </div>
         </div>
     </div>
@@ -380,20 +585,15 @@ let stats = {
 
 // Mouse panel
 let mousePanelExpanded = false;
-let mouseX = 0, mouseY = 0;
-let mouseActive = false;
-let leftTrail = [];
-let rightTrail = [];
-const MAX_TRAIL = 300;
 
-// Artifact highlight colors
-const ARTIFACT_COLORS = {
-    spike:    'rgba(231, 76, 60, 0.15)',
-    '60hz':   'rgba(230, 126, 34, 0.15)',
-    flatline: 'rgba(241, 196, 15, 0.15)',
-};
-const OURS_SHADE = 'rgba(46, 204, 113, 0.15)';
-const BASE_SHADE = 'rgba(231, 76, 60, 0.15)';
+// Keyboard state
+let kbMode = 'baseline';
+let kbTyped = [];
+let realMouseX = 0, realMouseY = 0;
+let cursorX = 0, cursorY = 0;
+let artifactOffset = { x: 0, y: 0 };
+let trail = [];
+const MAX_TRAIL = 200;
 
 
 // ===== Data Loading =====
@@ -417,17 +617,6 @@ async function loadData() {
 function resizeCanvases() {
     const canvases = ['canvas-raw', 'canvas-ours', 'canvas-baseline'];
     canvases.forEach(id => {
-        const c = document.getElementById(id);
-        if (!c) return;
-        const rect = c.parentElement.getBoundingClientRect();
-        c.width = rect.width * devicePixelRatio;
-        c.height = rect.height * devicePixelRatio;
-    });
-    resizeMouseCanvases();
-}
-
-function resizeMouseCanvases() {
-    ['mouse-left-canvas', 'mouse-right-canvas'].forEach(id => {
         const c = document.getElementById(id);
         if (!c) return;
         const rect = c.parentElement.getBoundingClientRect();
@@ -467,8 +656,37 @@ function updateStats() {
 }
 
 
-// ===== Trace Rendering =====
-function renderTrace(canvasId, buffer, flagBuffer, color, mode) {
+// ===== Artifact Highlighting (Fix 2: uniform red shading on ground truth) =====
+function drawArtifactShading(ctx, w, h, typeBuffer) {
+    if (!highlightEnabled) return;
+
+    const n = typeBuffer.length;
+    let inArtifact = false;
+    let startX = 0;
+
+    for (let i = 0; i < n; i++) {
+        const x = (i / n) * w;
+        const isArtifact = typeBuffer[i] !== null;
+
+        if (isArtifact && !inArtifact) {
+            inArtifact = true;
+            startX = x;
+        }
+        if (!isArtifact && inArtifact) {
+            ctx.fillStyle = 'rgba(231, 76, 60, 0.15)';
+            ctx.fillRect(startX, 0, x - startX, h);
+            inArtifact = false;
+        }
+    }
+    if (inArtifact) {
+        ctx.fillStyle = 'rgba(231, 76, 60, 0.15)';
+        ctx.fillRect(startX, 0, w - startX, h);
+    }
+}
+
+
+// ===== Trace Rendering (Fix 2: simplified — same shading on all traces) =====
+function renderTrace(canvasId, signalBuf, color) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -477,63 +695,22 @@ function renderTrace(canvasId, buffer, flagBuffer, color, mode) {
     ctx.fillStyle = '#161b22';
     ctx.fillRect(0, 0, w, h);
 
-    if (buffer.length < 2) return;
+    if (signalBuf.length < 2) return;
 
+    // Same ground-truth shading on every trace
+    drawArtifactShading(ctx, w, h, artifactTypeBuffer);
+
+    // Draw the signal line
     const yScale = h / (2 * MAX_AMPLITUDE);
     const yMid = h / 2;
-    const n = buffer.length;
+    const n = signalBuf.length;
 
-    // Draw artifact/detection shading
-    if (highlightEnabled && flagBuffer.length === n) {
-        let i = 0;
-        while (i < n) {
-            if (mode === 'raw') {
-                // Shade by artifact type
-                const t = flagBuffer[i];
-                if (t !== null && ARTIFACT_COLORS[t]) {
-                    const startX = (i / n) * w;
-                    let j = i;
-                    while (j < n && flagBuffer[j] === t) j++;
-                    const endX = (j / n) * w;
-                    ctx.fillStyle = ARTIFACT_COLORS[t];
-                    ctx.fillRect(startX, 0, endX - startX, h);
-                    i = j;
-                    continue;
-                }
-            } else if (mode === 'ours') {
-                if (flagBuffer[i] === true) {
-                    const startX = (i / n) * w;
-                    let j = i;
-                    while (j < n && flagBuffer[j] === true) j++;
-                    const endX = (j / n) * w;
-                    ctx.fillStyle = OURS_SHADE;
-                    ctx.fillRect(startX, 0, endX - startX, h);
-                    i = j;
-                    continue;
-                }
-            } else if (mode === 'baseline') {
-                if (flagBuffer[i] === true) {
-                    const startX = (i / n) * w;
-                    let j = i;
-                    while (j < n && flagBuffer[j] === true) j++;
-                    const endX = (j / n) * w;
-                    ctx.fillStyle = BASE_SHADE;
-                    ctx.fillRect(startX, 0, endX - startX, h);
-                    i = j;
-                    continue;
-                }
-            }
-            i++;
-        }
-    }
-
-    // Draw the trace line
     ctx.beginPath();
     ctx.strokeStyle = color;
     ctx.lineWidth = devicePixelRatio;
     for (let i = 0; i < n; i++) {
         const x = (i / n) * w;
-        const y = yMid - buffer[i] * yScale;
+        const y = yMid - signalBuf[i] * yScale;
         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     }
     ctx.stroke();
@@ -547,58 +724,72 @@ function tick() {
     const win = data[currentIndex % data.length];
 
     updateStatsFromWindow(win);
+    updateKeyboardStatus();
 
-    // Queue points for smooth rendering
-    pendingPoints.push(...win.signal_ch0);
-    pendingOursFlags.push(...new Array(win.signal_ch0.length).fill(win.ours_hit));
-    pendingBaseFlags.push(...new Array(win.signal_ch0.length).fill(win.baseline_hit));
-    pendingTypeFlags.push(...new Array(win.signal_ch0.length).fill(win.injected_type));
+    // Queue points for smooth draining
+    const pts = win.signal_ch0;
+    pendingPoints.push(...pts);
+    pendingTypeFlags.push(...new Array(pts.length).fill(win.injected_type));
+    pendingOursFlags.push(...new Array(pts.length).fill(win.ours_hit));
+    pendingBaseFlags.push(...new Array(pts.length).fill(win.baseline_hit));
 
     updateStats();
     currentIndex++;
 }
 
-function renderLoop() {
-    // Drain a batch of pending points per frame
-    const targetFrames = Math.max(1, Math.round(tickIntervalMs / 16));
-    const batchSize = Math.max(1, Math.ceil(pendingPoints.length / targetFrames));
+// Fix 4: Smooth scrolling with frame-based draining
+function renderLoop(timestamp) {
+    // Safety cap: if tab was backgrounded, don't let pending accumulate
+    if (pendingPoints.length > DISPLAY_POINTS) {
+        const excess = pendingPoints.length - 200;
+        pendingPoints.splice(0, excess);
+        pendingTypeFlags.splice(0, excess);
+        pendingOursFlags.splice(0, excess);
+        pendingBaseFlags.splice(0, excess);
+    }
 
+    // Drain pending points smoothly
     if (pendingPoints.length > 0) {
-        const batch = pendingPoints.splice(0, batchSize);
+        const framesPerTick = tickIntervalMs / 16.67;
+        const pointsPerFrame = Math.ceil(pendingPoints.length / framesPerTick);
+        const batchSize = Math.max(1, Math.min(pointsPerFrame, pendingPoints.length));
+
+        const ptsBatch = pendingPoints.splice(0, batchSize);
+        const typesBatch = pendingTypeFlags.splice(0, batchSize);
         const oursBatch = pendingOursFlags.splice(0, batchSize);
         const baseBatch = pendingBaseFlags.splice(0, batchSize);
-        const typeBatch = pendingTypeFlags.splice(0, batchSize);
 
-        signalBuffer.push(...batch);
+        signalBuffer.push(...ptsBatch);
+        artifactTypeBuffer.push(...typesBatch);
         oursHitBuffer.push(...oursBatch);
         baselineHitBuffer.push(...baseBatch);
-        artifactTypeBuffer.push(...typeBatch);
 
         // Build cleaned buffers
-        const oursCleaned = batch.map((v, i) => oursBatch[i] ? 0 : v);
-        const baseCleaned = batch.map((v, i) => baseBatch[i] ? 0 : v);
-        oursCleanBuffer.push(...oursCleaned);
-        baselineCleanBuffer.push(...baseCleaned);
+        oursCleanBuffer.push(...ptsBatch.map((v, i) => oursBatch[i] ? 0 : v));
+        baselineCleanBuffer.push(...ptsBatch.map((v, i) => baseBatch[i] ? 0 : v));
 
-        // Trim all buffers
+        // Trim all to DISPLAY_POINTS
         const max = DISPLAY_POINTS;
         if (signalBuffer.length > max) {
             signalBuffer = signalBuffer.slice(-max);
+            artifactTypeBuffer = artifactTypeBuffer.slice(-max);
             oursHitBuffer = oursHitBuffer.slice(-max);
             baselineHitBuffer = baselineHitBuffer.slice(-max);
-            artifactTypeBuffer = artifactTypeBuffer.slice(-max);
             oursCleanBuffer = oursCleanBuffer.slice(-max);
             baselineCleanBuffer = baselineCleanBuffer.slice(-max);
         }
     }
 
-    // Render all visible traces
-    renderTrace('canvas-raw', signalBuffer, artifactTypeBuffer, '#ecf0f1', 'raw');
-    renderTrace('canvas-ours', oursCleanBuffer, oursHitBuffer, '#2ecc71', 'ours');
-    renderTrace('canvas-baseline', baselineCleanBuffer, baselineHitBuffer, '#e67e22', 'baseline');
+    // Render all three traces
+    renderTrace('canvas-raw', signalBuffer, '#ecf0f1');
+    renderTrace('canvas-ours', oursCleanBuffer, '#2ecc71');
+    renderTrace('canvas-baseline', baselineCleanBuffer, '#e67e22');
 
-    // Render mouse panels if expanded
-    updateMousePanels();
+    // Keyboard panel (only when expanded)
+    if (mousePanelExpanded) {
+        updateBCICursor();
+        renderTrailCanvas();
+    }
 
     requestAnimationFrame(renderLoop);
 }
@@ -621,16 +812,10 @@ function resetPlayback() {
     pendingOursFlags = [];
     pendingBaseFlags = [];
     pendingTypeFlags = [];
-    leftTrail = [];
-    rightTrail = [];
-    mouseActive = false;
+    trail = [];
+    artifactOffset = { x: 0, y: 0 };
     stats = { total: 0, oursTP: 0, oursFP: 0, oursFN: 0, baseTP: 0, baseFP: 0, baseFN: 0, oursDetected: 0, baseDetected: 0 };
     updateStats();
-    // Reset mouse subtitles
-    const leftSub = document.getElementById('mouse-left-sub');
-    const rightSub = document.getElementById('mouse-right-sub');
-    if (leftSub) { leftSub.textContent = 'Move your mouse anywhere'; leftSub.style.opacity = '1'; }
-    if (rightSub) { rightSub.textContent = 'Move your mouse anywhere'; rightSub.style.opacity = '1'; }
 }
 
 
@@ -648,7 +833,7 @@ document.getElementById('inject-toggle').addEventListener('change', onInjectTogg
 document.getElementById('highlight-toggle').addEventListener('change', onHighlightToggle);
 
 
-// ===== Mouse Panel =====
+// ===== Mouse Panel (Fix 1: overlay, no layout changes) =====
 function toggleMousePanel() {
     mousePanelExpanded = !mousePanelExpanded;
     const panel = document.getElementById('mouse-panel');
@@ -659,132 +844,212 @@ function toggleMousePanel() {
         panel.classList.replace('collapsed', 'expanded');
         icon.textContent = '▼';
         text.textContent = 'Hide patient impact demo';
-        document.getElementById('trace-ours').style.display = 'none';
-        document.getElementById('trace-baseline').style.display = 'none';
-        setTimeout(resizeMouseCanvases, 400);
     } else {
         panel.classList.replace('expanded', 'collapsed');
         icon.textContent = '▲';
         text.textContent = 'Show patient impact demo';
-        document.getElementById('trace-ours').style.display = '';
-        document.getElementById('trace-baseline').style.display = '';
     }
 }
 
 
-// ===== Mouse Tracking =====
-document.addEventListener('mousemove', (e) => {
-    if (!mouseActive) {
-        mouseActive = true;
-        document.getElementById('mouse-left-sub').style.opacity = '0';
-        document.getElementById('mouse-right-sub').style.opacity = '0';
-        setTimeout(() => {
-            const leftSub = document.getElementById('mouse-left-sub');
-            const rightSub = document.getElementById('mouse-right-sub');
-            leftSub.textContent = injectEnabled ? 'Artifacts disrupting decoder' : 'No artifacts — cursors identical';
-            rightSub.textContent = injectEnabled ? 'Artifacts cleaned — cursor stable' : 'No artifacts — cursors identical';
-            leftSub.style.opacity = '1';
-            rightSub.style.opacity = '1';
-        }, 300);
-    }
+// ===== Keyboard BCI Cursor (Fix 3) =====
+function isArtifactActive() {
+    if (!injectEnabled) return false;
+    const data = artifactData;
+    if (data.length === 0) return false;
+    const win = data[currentIndex % data.length];
+    return win && win.injected_type !== null;
+}
 
-    const nx = e.clientX / window.innerWidth;
-    const ny = e.clientY / window.innerHeight;
+function isArtifactCaught() {
+    const data = artifactData;
+    if (data.length === 0) return false;
+    const win = data[currentIndex % data.length];
+    if (!win) return false;
+    if (kbMode === 'ours') return win.ours_hit;
+    if (kbMode === 'baseline') return win.baseline_hit;
+    return false;
+}
 
-    const canvas = document.getElementById('mouse-right-canvas');
-    if (canvas) {
-        mouseX = nx * canvas.width;
-        mouseY = ny * canvas.height;
-    }
+// Mouse tracking on keyboard area
+const kbArea = document.getElementById('kb-area');
+
+kbArea.addEventListener('mousemove', (e) => {
+    const rect = kbArea.getBoundingClientRect();
+    realMouseX = e.clientX - rect.left;
+    realMouseY = e.clientY - rect.top;
 });
 
-function getCurrentPlaybackWindow() {
-    const data = injectEnabled ? artifactData : cleanData;
-    if (data.length === 0) return null;
-    // Use most recent window
-    const idx = (currentIndex - 1 + data.length) % data.length;
-    return data[idx];
-}
+kbArea.addEventListener('mouseleave', () => {
+    document.getElementById('bci-cursor').style.display = 'none';
+});
 
-function updateMousePanels() {
-    if (!mousePanelExpanded) return;
+kbArea.addEventListener('mouseenter', () => {
+    document.getElementById('bci-cursor').style.display = 'block';
+});
 
-    const currentWin = getCurrentPlaybackWindow();
-    const isArtifact = currentWin
-        && currentWin.injected_type !== null
-        && injectEnabled;
+function updateBCICursor() {
+    const artifactActive = isArtifactActive();
+    const caught = isArtifactCaught();
+    const displaced = artifactActive && !caught;
 
-    // Right panel: always smooth
-    const rightPos = { x: mouseX, y: mouseY };
-    rightTrail.push({ ...rightPos, artifact: false, type: null });
-
-    // Left panel: smooth + jitter when artifact active
-    let leftPos = { x: mouseX, y: mouseY };
-    if (isArtifact) {
-        let jitter = 40;
-        if (currentWin.injected_type === 'spike') jitter = 60;
-        if (currentWin.injected_type === '60hz') jitter = 35;
-        if (currentWin.injected_type === 'flatline') jitter = 20;
-        leftPos.x += (Math.random() - 0.5) * jitter * 2;
-        leftPos.y += (Math.random() - 0.5) * jitter * 2;
+    if (displaced) {
+        if (artifactOffset.x === 0 && artifactOffset.y === 0) {
+            const magnitude = 40 + Math.random() * 40;
+            const angle = Math.random() * Math.PI * 2;
+            artifactOffset.x = Math.cos(angle) * magnitude;
+            artifactOffset.y = Math.sin(angle) * magnitude;
+        }
+        artifactOffset.x += (Math.random() - 0.5) * 3;
+        artifactOffset.y += (Math.random() - 0.5) * 3;
+    } else {
+        artifactOffset.x *= 0.85;
+        artifactOffset.y *= 0.85;
+        if (Math.abs(artifactOffset.x) < 1 && Math.abs(artifactOffset.y) < 1) {
+            artifactOffset.x = 0;
+            artifactOffset.y = 0;
+        }
     }
-    leftTrail.push({ ...leftPos, artifact: isArtifact, type: isArtifact ? currentWin.injected_type : null });
 
-    // Trim trails
-    if (leftTrail.length > MAX_TRAIL) leftTrail = leftTrail.slice(-MAX_TRAIL);
-    if (rightTrail.length > MAX_TRAIL) rightTrail = rightTrail.slice(-MAX_TRAIL);
+    cursorX = realMouseX + artifactOffset.x;
+    cursorY = realMouseY + artifactOffset.y;
 
-    drawMouseCanvas('mouse-left-canvas', leftTrail, leftPos, false);
-    drawMouseCanvas('mouse-right-canvas', rightTrail, rightPos, true);
+    const area = document.getElementById('kb-area');
+    cursorX = Math.max(0, Math.min(area.offsetWidth, cursorX));
+    cursorY = Math.max(0, Math.min(area.offsetHeight, cursorY));
+
+    const dot = document.getElementById('bci-cursor');
+    dot.style.left = cursorX + 'px';
+    dot.style.top = cursorY + 'px';
+    dot.classList.toggle('displaced', displaced);
+
+    trail.push({ x: cursorX, y: cursorY, displaced });
+    if (trail.length > MAX_TRAIL) trail = trail.slice(-MAX_TRAIL);
+
+    updateKeyHover(cursorX, cursorY);
 }
 
-function drawMouseCanvas(canvasId, trail, currentPos, isClean) {
-    const canvas = document.getElementById(canvasId);
+function updateKeyHover(cx, cy) {
+    document.querySelectorAll('.kb-key.hover').forEach(k => k.classList.remove('hover'));
+    const key = getKeyAtPosition(cx, cy);
+    if (key) key.classList.add('hover');
+}
+
+function getKeyAtPosition(x, y) {
+    const keys = document.querySelectorAll('.kb-key');
+    const areaRect = document.getElementById('kb-area').getBoundingClientRect();
+
+    for (const key of keys) {
+        const rect = key.getBoundingClientRect();
+        const kx = rect.left - areaRect.left;
+        const ky = rect.top - areaRect.top;
+        const kw = rect.width;
+        const kh = rect.height;
+
+        if (x >= kx && x <= kx + kw && y >= ky && y <= ky + kh) {
+            return key;
+        }
+    }
+    return null;
+}
+
+// Click registers key under BCI cursor, not real mouse
+kbArea.addEventListener('click', (e) => {
+    e.preventDefault();
+
+    const key = getKeyAtPosition(cursorX, cursorY);
+    if (!key) return;
+
+    const char = key.dataset.char;
+
+    if (char === 'BACK') {
+        kbTyped.pop();
+        renderTypedOutput();
+        return;
+    }
+
+    // Determine intended key (under real mouse)
+    const areaRect = kbArea.getBoundingClientRect();
+    const realKey = getKeyAtPosition(
+        e.clientX - areaRect.left,
+        e.clientY - areaRect.top
+    );
+    const intendedChar = realKey ? realKey.dataset.char : null;
+    const correct = char === intendedChar;
+
+    kbTyped.push({ actual: char, correct });
+
+    // Flash feedback
+    const cls = correct ? 'flash-correct' : 'flash-wrong';
+    key.classList.add(cls);
+    setTimeout(() => key.classList.remove(cls), 300);
+
+    renderTypedOutput();
+});
+
+// Trail rendering
+function renderTrailCanvas() {
+    const canvas = document.getElementById('trail-canvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const w = canvas.width, h = canvas.height;
 
-    ctx.fillStyle = '#161b22';
-    ctx.fillRect(0, 0, w, h);
+    const area = document.getElementById('kb-area');
+    canvas.width = area.offsetWidth;
+    canvas.height = area.offsetHeight;
 
-    // Draw trail with fading
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
     for (let i = 1; i < trail.length; i++) {
         ctx.beginPath();
         ctx.moveTo(trail[i-1].x, trail[i-1].y);
         ctx.lineTo(trail[i].x, trail[i].y);
-
-        if (trail[i].artifact) {
-            switch (trail[i].type) {
-                case 'spike':    ctx.strokeStyle = '#e74c3c'; break;
-                case '60hz':     ctx.strokeStyle = '#e67e22'; break;
-                case 'flatline': ctx.strokeStyle = '#f1c40f'; break;
-                default:         ctx.strokeStyle = '#e74c3c'; break;
-            }
-        } else {
-            ctx.strokeStyle = isClean ? '#2ecc71' : '#ecf0f1';
-        }
-
-        ctx.globalAlpha = 0.2 + 0.8 * (i / trail.length);
-        ctx.lineWidth = 2 * devicePixelRatio;
+        ctx.strokeStyle = trail[i].displaced ? '#e74c3c' : '#2ecc71';
+        ctx.globalAlpha = 0.1 + 0.4 * (i / trail.length);
+        ctx.lineWidth = 2;
         ctx.stroke();
     }
     ctx.globalAlpha = 1;
+}
 
-    // Draw cursor dot
-    const dotR = 6 * devicePixelRatio;
-    const glowR = 12 * devicePixelRatio;
-    ctx.beginPath();
-    ctx.arc(currentPos.x, currentPos.y, dotR, 0, Math.PI * 2);
-    ctx.fillStyle = isClean ? '#2ecc71' : (
-        trail.length > 0 && trail[trail.length-1].artifact ? '#e74c3c' : '#ecf0f1'
-    );
-    ctx.fill();
+// Mode toggle
+function setMode(mode) {
+    kbMode = mode;
+    document.getElementById('mode-baseline').classList.toggle('active', mode === 'baseline');
+    document.getElementById('mode-ours').classList.toggle('active', mode === 'ours');
+    clearTyped();
+    artifactOffset = { x: 0, y: 0 };
+    trail = [];
+}
 
-    // Glow
-    ctx.beginPath();
-    ctx.arc(currentPos.x, currentPos.y, glowR, 0, Math.PI * 2);
-    ctx.fillStyle = isClean ? 'rgba(46,204,113,0.15)' : 'rgba(236,240,241,0.1)';
-    ctx.fill();
+function clearTyped() {
+    kbTyped = [];
+    renderTypedOutput();
+}
+
+function renderTypedOutput() {
+    let html = '';
+    for (const t of kbTyped) {
+        const cls = t.correct ? 'char-correct' : 'char-wrong';
+        html += `<span class="${cls}">${t.actual}</span>`;
+    }
+    document.getElementById('kb-typed').innerHTML = html;
+}
+
+// Keyboard status indicator
+function updateKeyboardStatus() {
+    if (!mousePanelExpanded) return;
+
+    const el = document.getElementById('kb-status');
+    const active = isArtifactActive();
+    const caught = isArtifactCaught();
+
+    if (!injectEnabled || !active) {
+        el.innerHTML = '';
+    } else if (caught) {
+        el.innerHTML = '<span style="color:var(--green);">● Artifact caught — cursor stable</span>';
+    } else {
+        el.innerHTML = '<span class="artifact-dot"></span> <span style="color:var(--red);">Artifact active — cursor displaced</span>';
+    }
 }
 
 
