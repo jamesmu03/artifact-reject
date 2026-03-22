@@ -1303,8 +1303,12 @@ function updateArtifactOffset() {
 function updateBCICursor() {
     if (!handDetected) return;
 
-    // Freeze cursor when artifact is caught (ours mode, manual inject)
-    const frozen = manualArtifactActive && manualArtifactCaught;
+    // Freeze cursor when artifact is caught (manual or dataset inject)
+    let frozen = manualArtifactActive && manualArtifactCaught;
+    if (!frozen && injectEnabled && !manualArtifactActive && currentWinState.injected_type !== null) {
+        const caught = (kbMode === 'ours') ? currentWinState.ours_hit : currentWinState.baseline_hit;
+        if (caught) frozen = true;
+    }
 
     const kbArea = document.getElementById('kb-area');
     const areaW = kbArea.offsetWidth;
