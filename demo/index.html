@@ -513,6 +513,8 @@ body {
             <input type="checkbox" id="highlight-toggle" checked>
             <span class="toggle-track-sm"></span>
         </label>
+        <span class="divider">|</span>
+        <button id="pause-btn" onclick="togglePause()" style="background:none;border:1px solid var(--border);color:var(--text-secondary);padding:3px 10px;border-radius:4px;font-size:12px;cursor:pointer;font-family:var(--font-main);">⏸ Pause</button>
     </div>
 </div>
 
@@ -651,6 +653,7 @@ let baselineHitBuffer = [];
 // Smooth scrolling
 let tickIntervalMs = 400;
 let tickTimer = null;
+let paused = false;
 let pendingPoints = [];
 let pendingOursFlags = [];
 let pendingBaseFlags = [];
@@ -823,6 +826,7 @@ function renderTrace(canvasId, signalBuf, color) {
 // ══════════════════════════════════════════
 
 function tick() {
+    if (paused) return;
     const data = injectEnabled ? artifactData : cleanData;
     if (data.length === 0) return;
     const win = data[currentIndex % data.length];
@@ -929,10 +933,18 @@ function resetPlayback() {
 
 function onInjectToggle() {
     injectEnabled = document.getElementById('inject-toggle').checked;
-    resetPlayback();
 }
 function onHighlightToggle() {
     highlightEnabled = document.getElementById('highlight-toggle').checked;
+}
+
+function togglePause() {
+    paused = !paused;
+    const btn = document.getElementById('pause-btn');
+    btn.textContent = paused ? '▶ Play' : '⏸ Pause';
+    const dot = document.querySelector('.pulse-dot');
+    dot.style.animationPlayState = paused ? 'paused' : 'running';
+    dot.style.background = paused ? 'var(--orange)' : 'var(--green)';
 }
 document.getElementById('inject-toggle').addEventListener('change', onInjectToggle);
 document.getElementById('highlight-toggle').addEventListener('change', onHighlightToggle);
