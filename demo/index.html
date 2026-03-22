@@ -1147,6 +1147,9 @@ function updateArtifactOffset() {
 function updateBCICursor() {
     if (!handDetected) return;
 
+    // Freeze cursor when artifact is caught (ours mode, manual inject)
+    const frozen = manualArtifactActive && kbMode === 'ours';
+
     const kbArea = document.getElementById('kb-area');
     const areaW = kbArea.offsetWidth;
     const areaH = kbArea.offsetHeight;
@@ -1158,21 +1161,25 @@ function updateBCICursor() {
     const normX = Math.max(0, Math.min(1, (handX - HAND_X_MIN) / (HAND_X_MAX - HAND_X_MIN)));
     const normY = Math.max(0, Math.min(1, (handY - HAND_Y_MIN) / (HAND_Y_MAX - HAND_Y_MIN)));
 
-    const rawCursorX = normX * areaW;
-    const rawCursorY = normY * areaH;
+    // Target = where finger is + artifact displacement
+    const targetX = normX * areaW + artifactOffset.x;
+    const targetY = normY * areaH + artifactOffset.y;
 
-    // Low-pass filter
-    const SMOOTHING = 0.3;
-    smoothedX = smoothedX * SMOOTHING + rawCursorX * (1 - SMOOTHING);
-    smoothedY = smoothedY * SMOOTHING + rawCursorY * (1 - SMOOTHING);
+    // Always track smoothed for "intended" position (used for correct/wrong detection)
+    smoothedX = smoothedX * 0.3 + (normX * areaW) * 0.7;
+    smoothedY = smoothedY * 0.3 + (normY * areaH) * 0.7;
 
-    // Apply artifact offset
-    cursorX = smoothedX + artifactOffset.x;
-    cursorY = smoothedY + artifactOffset.y;
+    if (!frozen) {
+        // Lerp cursor toward target from wherever it currently is
+        const LERP = 0.15;
+        cursorX += (targetX - cursorX) * LERP;
+        cursorY += (targetY - cursorY) * LERP;
 
-    // Clamp
-    cursorX = Math.max(0, Math.min(areaW, cursorX));
-    cursorY = Math.max(0, Math.min(areaH, cursorY));
+        // Clamp
+        cursorX = Math.max(0, Math.min(areaW, cursorX));
+        cursorY = Math.max(0, Math.min(areaH, cursorY));
+    }
+    // When frozen: cursorX/cursorY don't change — cursor holds position
 
     // Position dot
     const dot = document.getElementById('bci-cursor');
@@ -1317,6 +1324,9 @@ function injectManualArtifact(type) {
 }
 
 function releaseManualArtifact() {
+    // Sync smoothed position to where cursor is now, preventing jump
+    smoothedX = cursorX;
+    smoothedY = cursorY;
     manualArtifactActive = false;
     manualArtifactType = null;
     updateKeyboardStatus();
