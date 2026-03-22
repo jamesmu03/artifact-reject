@@ -1384,6 +1384,8 @@ document.addEventListener('keydown', (e) => {
         onInjectToggle();
     }
     if (e.key === 'c' && mousePanelExpanded) clearTyped();
+    if (e.key === 'ArrowLeft' && mousePanelExpanded) setMode('baseline');
+    if (e.key === 'ArrowRight' && mousePanelExpanded) setMode('ours');
 });
 
 document.addEventListener('keyup', (e) => {
