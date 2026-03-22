@@ -60,53 +60,54 @@ style: |
 
 # artifact-reject
 
-Real-time artifact rejection for brain-computer interfaces
+real-time artifact rejection for brain-computer interfaces
 
-**Hack Duke · 2026**
+**James Mu (Duke)** and **Derek Mu (CMU)**
+*HackDuke 2026*
 
 ---
 
 # The problem
 
-BCIs restore movement, speech, and independence to patients with paralysis, ALS, and epilepsy.
+![bg right:38% contain](assets/bci/synchron.png)
 
-They work by decoding electrical signals from the brain — signals that are easily corrupted by muscle activity, movement, or electrical interference.
+BCIs decode brain signals into commands—restoring movement and communication for patients with paralysis or ALS.
 
-> When corrupted data reaches the decoder, it produces the wrong command. For a patient controlling a prosthetic or communication device, that failure matters.
+> Corrupted signals produce wrong commands.
+For a patient, that failure matters.
 
 ---
 
 # Why it's still a problem
 
-Hardware has improved — better electrodes, better shielding. But real-time software artifact rejection in the signal pipeline is still fragmented and lab-specific.
+![bg right:35%](assets/bci/utah_array.jpg)
 
-The standard software approach — a per-channel z-score threshold — **misses 87% of artifacts** and can't detect power line interference at all.
+The standard fix (z-score thresholding) **misses 87% of artifacts.**
 
-Every lab recalibrates manually. No standard solution exists across devices or patients.
+No standard solution works across labs, devices, or patients.
 
-**Science Corp's Synapse is building the industry-standard neural data pipeline. We're building the artifact rejection layer for it.**
+**We're building the artifact rejection layer for Science Corp's Synapse pipeline, an emerging industry standrd.**
 
 ---
 
 # Our approach
 
-Two detectors running in real time on every 100ms window:
+- **MAD detector** — adaptive threshold per channel, no recalibration
+- **FFT detector** — catches 60 Hz interference z-score can't see
 
-- **Adaptive amplitude detector** — threshold scales with each channel's own noise floor, no recalibration needed across patients or sessions
-- **Spectral line noise detector** — catches 60 Hz interference that amplitude checks cannot see
-
-Detected windows are blanked before reaching the decoder — a neutral output is always safer than a wrong one.
+![w:820px](assets/approach.png)
 
 ---
 
 # Results
 
-| | artifact-reject | Z-score baseline (5σ) |
+| | artifact-reject | Baseline |
 |--|--|--|
-| Artifacts detected | **83%** | 13% |
-| Clean signal preserved | **85%** | 95% |
+| Artifacts detected | **63%** | 13% |
 
-6× more artifacts caught. Built as a tap for **Science Corp's Synapse** — the emerging industry standard for neural data pipelines — so it works out of the box for any lab or device running on Synapse, with no changes to the recording setup.
+**5× more artifacts caught.** Works out of the box on any Synapse setup.
+
+![w:9000px](assets/results.png)
 
 ---
 
@@ -114,9 +115,7 @@ Detected windows are blanked before reaching the decoder — a neutral output is
 
 # Live demo
 
-See what artifact rejection feels like —
-control a BCI keyboard with your finger,
-with and without our filter.
+BCI keyboard — with and without our filter.
 
 ---
 
@@ -126,9 +125,6 @@ with and without our filter.
 
 James Mu (Duke) · Derek Mu (CMU)
 
-`github.com/jamesmu/artifact-reject`
+`github.com/jamesmu03/artifact-reject`
 
-Drop-in artifact rejection for the Synapse neural interface platform.
-Zero configuration. Real-time. Open source.
-
-*Hack Duke · 2026*
+*HackDuke 2026*
