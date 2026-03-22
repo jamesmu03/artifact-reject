@@ -595,6 +595,9 @@ let artifactOffset = { x: 0, y: 0 };
 let trail = [];
 const MAX_TRAIL = 200;
 
+// Current window state (updated each tick for cursor logic)
+let currentWinState = { injected_type: null, ours_hit: false, baseline_hit: false };
+
 
 // ===== Data Loading =====
 async function loadData() {
@@ -724,6 +727,13 @@ function tick() {
     const win = data[currentIndex % data.length];
 
     updateStatsFromWindow(win);
+
+    // Track current window state for cursor logic
+    currentWinState = {
+        injected_type: win.injected_type,
+        ours_hit: win.ours_hit,
+        baseline_hit: win.baseline_hit,
+    };
     updateKeyboardStatus();
 
     // Queue points for smooth draining
@@ -855,19 +865,13 @@ function toggleMousePanel() {
 // ===== Keyboard BCI Cursor (Fix 3) =====
 function isArtifactActive() {
     if (!injectEnabled) return false;
-    const data = artifactData;
-    if (data.length === 0) return false;
-    const win = data[currentIndex % data.length];
-    return win && win.injected_type !== null;
+    return currentWinState.injected_type !== null;
 }
 
-function isArtifactCaught() {
-    const data = artifactData;
-    if (data.length === 0) return false;
-    const win = data[currentIndex % data.length];
-    if (!win) return false;
-    if (kbMode === 'ours') return win.ours_hit;
-    if (kbMode === 'baseline') return win.baseline_hit;
+function isDetectorFiring() {
+    // Does the current mode's detector fire on this window?
+    if (kbMode === 'ours') return currentWinState.ours_hit;
+    if (kbMode === 'baseline') return currentWinState.baseline_hit;
     return false;
 }
 
@@ -890,8 +894,9 @@ kbArea.addEventListener('mouseenter', () => {
 
 function updateBCICursor() {
     const artifactActive = isArtifactActive();
-    const caught = isArtifactCaught();
-    const displaced = artifactActive && !caught;
+    const detectorFiring = isDetectorFiring();
+    const displaced = artifactActive && !detectorFiring;  // artifact present but missed
+    const frozen = detectorFiring;  // window blanked → no decoder input → cursor holds
 
     if (displaced) {
         if (artifactOffset.x === 0 && artifactOffset.y === 0) {
@@ -911,12 +916,20 @@ function updateBCICursor() {
         }
     }
 
-    cursorX = realMouseX + artifactOffset.x;
-    cursorY = realMouseY + artifactOffset.y;
+    // When frozen (detector fired → window blanked), hold cursor at last position
+    if (!frozen) {
+        const targetX = realMouseX + artifactOffset.x;
+        const targetY = realMouseY + artifactOffset.y;
 
-    const area = document.getElementById('kb-area');
-    cursorX = Math.max(0, Math.min(area.offsetWidth, cursorX));
-    cursorY = Math.max(0, Math.min(area.offsetHeight, cursorY));
+        // Lerp toward target (0.7 = slightly dampened, feels like decoded BCI cursor)
+        const sensitivity = 0.7;
+        cursorX += (targetX - cursorX) * sensitivity;
+        cursorY += (targetY - cursorY) * sensitivity;
+
+        const area = document.getElementById('kb-area');
+        cursorX = Math.max(0, Math.min(area.offsetWidth, cursorX));
+        cursorY = Math.max(0, Math.min(area.offsetHeight, cursorY));
+    }
 
     const dot = document.getElementById('bci-cursor');
     dot.style.left = cursorX + 'px';
@@ -1041,11 +1054,11 @@ function updateKeyboardStatus() {
 
     const el = document.getElementById('kb-status');
     const active = isArtifactActive();
-    const caught = isArtifactCaught();
+    const firing = isDetectorFiring();
 
     if (!injectEnabled || !active) {
         el.innerHTML = '';
-    } else if (caught) {
+    } else if (firing) {
         el.innerHTML = '<span style="color:var(--green);">● Artifact caught — cursor stable</span>';
     } else {
         el.innerHTML = '<span class="artifact-dot"></span> <span style="color:var(--red);">Artifact active — cursor displaced</span>';
