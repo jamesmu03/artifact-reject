@@ -7,7 +7,7 @@ style: |
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     background: #ffffff;
     color: #1a1a2e;
-    font-size: 20px;
+    font-size: 24px;
     padding: 40px 60px;
   }
   h1 {
@@ -31,7 +31,7 @@ style: |
   }
   blockquote p { margin: 0; }
   table { border-collapse: collapse; width: 100%; font-size: 0.95em; }
-  th { background: #4a6cf7; color: #fff; padding: 0.4em 0.8em; text-align: left; }
+  th { background: #4a6cf7; color: #fff; padding: 0.4em 0.8em; text-align: left; font-weight: normal; }
   td { border: 1px solid #d0d8ff; padding: 0.4em 0.8em; }
   tr:nth-child(even) td { background: #f5f7ff; }
   .columns {
@@ -60,70 +60,53 @@ style: |
 
 # artifact-reject
 
-Real-time signal cleaning for brain-computer interfaces
+Real-time artifact rejection for brain-computer interfaces
 
 **Hack Duke · 2026**
 
 ---
 
-# BCIs are only as good as their signal
+# The problem
 
-Brain implants are changing medicine — restoring movement to paralyzed patients, treating epilepsy, enabling speech for ALS patients.
+BCIs restore movement, speech, and independence to patients with paralysis, ALS, and epilepsy.
 
-But the signal they record is *constantly* getting corrupted: a twitch, a power outlet, a loose wire.
+They work by decoding electrical signals from the brain — signals that are easily corrupted by muscle activity, movement, or electrical interference.
 
-**Every major player has this problem.**
-Neuralink, Synchron, Blackrock, Neuropace — none of them have solved it in software.
-
-> The entire field assumes someone else has figured out signal quality. Nobody has.
+> When corrupted data reaches the decoder, it produces the wrong command. For a patient controlling a prosthetic or communication device, that failure matters.
 
 ---
 
-# The current fix is a blunt instrument
+# Why it's still a problem
 
-The standard approach: flag any window above a fixed amplitude cutoff.
+Hardware has improved — better electrodes, better shielding. But real-time software artifact rejection in the signal pipeline is still fragmented and lab-specific.
 
-In our tests, it **rejected 100% of windows** — including the clean ones.
+The standard software filter uses a fixed amplitude cutoff. In practice, it **misses 87% of artifacts** and can't detect power line interference at all — which is spectrally invisible to any amplitude check.
 
-It also *completely misses* electrical interference, which looks quiet in amplitude but destroys the signal spectrally.
+Every lab recalibrates manually. No standard solution exists across devices or patients.
 
-> Labs are flying blind and throwing away good data at the same time.
+**Science Corp's Synapse is building the industry-standard neural data pipeline. We're building the artifact rejection layer for it.**
 
 ---
 
-# Our approach: two targeted detectors
+# Our approach
 
-<div class="columns">
+Two detectors running in real time on every 100ms window:
 
-<div>
+- **Adaptive amplitude detector** — threshold scales with each channel's own noise floor, no recalibration needed across patients or sessions
+- **Spectral line noise detector** — catches 60 Hz interference that amplitude checks cannot see
 
-**Adaptive amplitude**
-Sets the threshold relative to each channel's own noise floor — no manual tuning, works across rigs and patients
-
-</div>
-
-<div>
-
-**Spectral line noise**
-Catches 60 Hz electrical interference that no amplitude-based filter can see
-
-</div>
-
-</div>
-
-Drops in as a real-time tap on live neural data. **Built and running today.**
+Detected windows are blanked before reaching the decoder — a neutral output is always safer than a wrong one.
 
 ---
 
 # Results
 
-| | **artifact-reject** | Fixed threshold |
+| | artifact-reject | Standard filter |
 |--|--|--|
-| Bad signal caught | **83%** | 0% |
-| Good signal kept | **85%** | 0% |
-| Works out of the box | ✅ | ❌ |
+| Artifacts detected | **83%** | 13% |
+| Clean signal preserved | **85%** | 95% |
 
-The standard filter threw away everything. Ours surgically removes only what's corrupted.
+6× more artifacts caught. Built as a tap for **Science Corp's Synapse** — the emerging industry standard for neural data pipelines — so it works out of the box for any lab or device running on Synapse, with no changes to the recording setup.
 
 ---
 
