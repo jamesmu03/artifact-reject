@@ -95,7 +95,7 @@ body {
 #status-bar .right {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 8px;
 }
 
 .meta {
@@ -533,6 +533,10 @@ body {
         <button id="pause-btn" onclick="togglePause()" style="background:none;border:1px solid var(--border);color:var(--text-secondary);padding:3px 10px;border-radius:4px;font-size:12px;cursor:pointer;font-family:var(--font-main);">⏸ Pause</button>
         <span class="divider">|</span>
         <button id="theme-btn" onclick="toggleTheme()" style="background:none;border:1px solid var(--border);color:var(--text-secondary);padding:3px 10px;border-radius:4px;font-size:12px;cursor:pointer;font-family:var(--font-main);">☀️ Light</button>
+        <span class="divider">|</span>
+        <button onclick="changeSpeed(-1)" style="background:none;border:1px solid var(--border);color:var(--text-secondary);padding:3px 6px;border-radius:4px;font-size:12px;cursor:pointer;font-family:var(--font-main);">−</button>
+        <span id="speed-label" style="font-size:11px;color:var(--text-secondary);min-width:24px;text-align:center;display:inline-block;">1×</span>
+        <button onclick="changeSpeed(1)" style="background:none;border:1px solid var(--border);color:var(--text-secondary);padding:3px 6px;border-radius:4px;font-size:12px;cursor:pointer;font-family:var(--font-main);">+</button>
     </div>
 </div>
 
@@ -672,7 +676,7 @@ let oursHitBuffer = [];
 let baselineHitBuffer = [];
 
 // Smooth scrolling
-let tickIntervalMs = 600;
+let tickIntervalMs = 250;
 let tickTimer = null;
 let paused = false;
 let pendingPoints = [];
@@ -870,7 +874,26 @@ function tick() {
         baseline_hit: win.baseline_hit,
     };
 
-    const pts = win.signal_ch0;
+    let pts = win.signal_ch0;
+
+    // Add artifact on top of existing signal (matching generate_data.py ratios)
+    if (manualArtifactActive && manualArtifactType) {
+        pts = pts.map((v, i) => {
+            if (manualArtifactType === 'spike') {
+                // Single sharp transient per batch (like real spike = one sample at 900μV)
+                const spikeProb = 1.0 / pts.length;
+                if (Math.random() < spikeProb) return MAX_AMPLITUDE * 1.1 * (Math.random() > 0.5 ? 1 : -1);
+                return v;
+            } else if (manualArtifactType === 'flatline') {
+                return 0;
+            } else if (manualArtifactType === '60hz') {
+                // 150μV / 800 ≈ 0.19× MAX_AMPLITUDE, with ±3Hz jitter
+                return v + MAX_AMPLITUDE * 0.19 * Math.sin((Date.now() + i * 16.7) * 0.377);
+            }
+            return v;
+        });
+    }
+
     pendingPoints.push(...pts);
     // When manual artifact is held, override type flags so red shading is continuous
     const typeFlag = manualArtifactActive ? manualArtifactType : win.injected_type;
@@ -892,11 +915,13 @@ function renderLoop(timestamp) {
         pendingBaseFlags.splice(0, excess);
     }
 
-    // Drain pending points
+    // Drain pending points at a fixed rate for smooth scrolling
     if (pendingPoints.length > 0) {
+        // Fixed drain: ~30 points per window / ~36 frames per tick = ~1 point per frame
+        const POINTS_PER_WINDOW = 30;
         const framesPerTick = tickIntervalMs / 16.67;
-        const pointsPerFrame = Math.ceil(pendingPoints.length / framesPerTick);
-        const batchSize = Math.max(1, Math.min(pointsPerFrame, pendingPoints.length));
+        const pointsPerFrame = Math.max(1, Math.round(POINTS_PER_WINDOW / framesPerTick));
+        const batchSize = Math.min(pointsPerFrame, pendingPoints.length);
 
         const ptsBatch = pendingPoints.splice(0, batchSize);
         const typesBatch = pendingTypeFlags.splice(0, batchSize);
@@ -911,36 +936,6 @@ function renderLoop(timestamp) {
         oursCleanBuffer.push(...ptsBatch.map((v, i) => oursBatch[i] ? 0 : v));
         baselineCleanBuffer.push(...ptsBatch.map((v, i) => baseBatch[i] ? 0 : v));
 
-        const max = DISPLAY_POINTS;
-        if (signalBuffer.length > max) {
-            signalBuffer = signalBuffer.slice(-max);
-            artifactTypeBuffer = artifactTypeBuffer.slice(-max);
-            oursHitBuffer = oursHitBuffer.slice(-max);
-            baselineHitBuffer = baselineHitBuffer.slice(-max);
-            oursCleanBuffer = oursCleanBuffer.slice(-max);
-            baselineCleanBuffer = baselineCleanBuffer.slice(-max);
-        }
-    }
-
-    // Continuously inject artifact into raw signal while key is held
-    if (manualArtifactActive && manualArtifactType) {
-        const SAMPLES_PER_FRAME = 2;
-        for (let i = 0; i < SAMPLES_PER_FRAME; i++) {
-            let val = 0;
-            if (manualArtifactType === 'spike') {
-                val = (Math.random() * 0.4 + 0.5) * MAX_AMPLITUDE * (Math.random() > 0.5 ? 1 : -1);
-            } else if (manualArtifactType === 'flatline') {
-                val = 0;
-            } else if (manualArtifactType === '60hz') {
-                val = Math.sin(Date.now() * 0.06 + i) * MAX_AMPLITUDE * 0.5;
-            }
-            signalBuffer.push(val);
-            artifactTypeBuffer.push(manualArtifactType);
-            oursHitBuffer.push(false);
-            baselineHitBuffer.push(false);
-            oursCleanBuffer.push(0);
-            baselineCleanBuffer.push(0);
-        }
         const max = DISPLAY_POINTS;
         if (signalBuffer.length > max) {
             signalBuffer = signalBuffer.slice(-max);
@@ -1013,6 +1008,20 @@ function toggleTheme() {
     document.body.classList.toggle('light-mode');
     const isLight = document.body.classList.contains('light-mode');
     document.getElementById('theme-btn').textContent = isLight ? '🌙 Dark' : '☀️ Light';
+}
+
+const SPEED_STEPS = [500, 375, 250, 175, 120];
+const SPEED_LABELS = ['0.5×', '0.7×', '1×', '1.5×', '2×'];
+let speedIndex = 2; // default 250ms = 1×
+
+function changeSpeed(dir) {
+    speedIndex = Math.max(0, Math.min(SPEED_STEPS.length - 1, speedIndex + dir));
+    tickIntervalMs = SPEED_STEPS[speedIndex];
+    document.getElementById('speed-label').textContent = SPEED_LABELS[speedIndex];
+    if (tickTimer) {
+        clearInterval(tickTimer);
+        tickTimer = setInterval(tick, tickIntervalMs);
+    }
 }
 document.getElementById('inject-toggle').addEventListener('change', onInjectToggle);
 document.getElementById('highlight-toggle').addEventListener('change', onHighlightToggle);
@@ -1412,6 +1421,13 @@ function injectManualArtifact(type) {
     // Override any already-queued pending samples so red shading starts immediately
     for (let i = 0; i < pendingTypeFlags.length; i++) {
         pendingTypeFlags[i] = manualArtifactType;
+        if (manualArtifactType === 'spike') {
+            if (Math.random() < 1.0 / pendingTypeFlags.length) pendingPoints[i] = MAX_AMPLITUDE * 1.1 * (Math.random() > 0.5 ? 1 : -1);
+        } else if (manualArtifactType === 'flatline') {
+            pendingPoints[i] = 0;
+        } else if (manualArtifactType === '60hz') {
+            pendingPoints[i] += MAX_AMPLITUDE * 0.19 * Math.sin(i * 1.2);
+        }
     }
 
     if (!caught) {
@@ -1421,39 +1437,10 @@ function injectManualArtifact(type) {
         artifactOffset.y = Math.sin(angle) * magnitude;
     }
 
-    // Inject visible spike into raw signal trace
-    injectVisualArtifactInTrace(manualArtifactType);
     flashArtifactOnTraces();
     updateKeyboardStatus();
 }
 
-function injectVisualArtifactInTrace(type) {
-    const INJECT_SAMPLES = 15;
-    for (let i = 0; i < INJECT_SAMPLES; i++) {
-        if (type === 'spike') {
-            signalBuffer.push(MAX_AMPLITUDE * 0.8 * (1 - i / INJECT_SAMPLES));
-        } else if (type === 'flatline') {
-            signalBuffer.push(0);
-        } else if (type === '60hz') {
-            signalBuffer.push(Math.sin(i * Math.PI * 2 / 5) * MAX_AMPLITUDE * 0.5);
-        }
-        artifactTypeBuffer.push(type);
-        oursHitBuffer.push(false);
-        baselineHitBuffer.push(false);
-        oursCleanBuffer.push(0);
-        baselineCleanBuffer.push(0);
-    }
-    // Trim buffers
-    const max = DISPLAY_POINTS;
-    if (signalBuffer.length > max) {
-        signalBuffer = signalBuffer.slice(-max);
-        artifactTypeBuffer = artifactTypeBuffer.slice(-max);
-        oursHitBuffer = oursHitBuffer.slice(-max);
-        baselineHitBuffer = baselineHitBuffer.slice(-max);
-        oursCleanBuffer = oursCleanBuffer.slice(-max);
-        baselineCleanBuffer = baselineCleanBuffer.slice(-max);
-    }
-}
 
 function releaseManualArtifact() {
     smoothedX = cursorX;
@@ -1461,6 +1448,13 @@ function releaseManualArtifact() {
     manualArtifactActive = false;
     manualArtifactType = null;
     artifactOffset = { x: 0, y: 0 };
+    // Flush entire pending queue so artifact waveform + red stop together
+    pendingPoints.length = 0;
+    pendingTypeFlags.length = 0;
+    pendingOursFlags.length = 0;
+    pendingBaseFlags.length = 0;
+    // Immediately refill queue so signal doesn't pause
+    tick();
     updateKeyboardStatus();
 }
 
