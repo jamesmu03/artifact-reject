@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Neural Signal Monitor — Artifact Rejection Demo</title>
 <meta name="description" content="Real-time artifact rejection for BCI neural signals. Compare MAD+FFT detector vs z-score baseline.">
+<!-- MediaPipe Hands -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.min.js"></script>
 <style>
 :root {
     --bg-primary: #0d1117;
@@ -140,7 +143,7 @@ body {
     flex-direction: column;
     gap: 8px;
     padding: 8px 12px;
-    padding-bottom: 48px; /* space for collapsed mouse bar */
+    padding-bottom: 48px;
     min-height: 0;
 }
 
@@ -152,6 +155,7 @@ body {
     border-radius: 8px;
     overflow: hidden;
     min-height: 0;
+    transition: box-shadow 0.3s;
 }
 
 .trace-wrap canvas {
@@ -180,7 +184,7 @@ body {
     color: var(--text-secondary);
 }
 
-/* ===== Mouse/Keyboard panel ===== */
+/* ===== Keyboard panel ===== */
 #mouse-panel {
     position: absolute;
     bottom: 0;
@@ -230,10 +234,10 @@ body {
 
 #mouse-content {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     height: calc(100% - 40px);
-    padding: 16px 24px;
+    padding: 8px 24px;
 }
 
 /* ===== Keyboard demo ===== */
@@ -241,9 +245,9 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
     width: 100%;
-    max-width: 600px;
+    max-width: 900px;
     padding: 8px 0;
 }
 
@@ -269,8 +273,8 @@ body {
 }
 
 .mode-btn {
-    padding: 6px 16px;
-    font-size: 12px;
+    padding: 8px 24px;
+    font-size: 14px;
     font-family: var(--font-main);
     background: none;
     border: none;
@@ -285,13 +289,57 @@ body {
 #mode-ours.active { background: var(--green); }
 #mode-baseline.active { background: var(--red); }
 
-/* Keyboard area: relative container for cursor overlay */
+/* Keyboard area */
 #kb-area {
     position: relative;
-    cursor: none;
     padding: 16px;
     user-select: none;
 }
+
+/* Webcam PiP — positioned in panel, not inside kb-area */
+#webcam-pip {
+    position: absolute;
+    top: 70px;
+    right: 60px;
+    width: 280px;
+    height: 210px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    z-index: 15;
+    background: #000;
+}
+
+#webcam-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+}
+
+#webcam-overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    transform: scaleX(-1);
+}
+
+#webcam-status {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: rgba(0,0,0,0.7);
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+
+#webcam-status.hidden { opacity: 0; pointer-events: none; }
 
 /* Trail canvas overlaid on keyboard */
 #trail-canvas {
@@ -314,18 +362,18 @@ body {
 
 .kb-row {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     justify-content: center;
 }
 
 .kb-key {
-    width: 44px;
-    height: 44px;
+    width: 60px;
+    height: 60px;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: 8px;
     color: var(--text-primary);
-    font-size: 16px;
+    font-size: 20px;
     font-weight: 500;
     font-family: var(--font-main);
     display: flex;
@@ -338,9 +386,9 @@ body {
 .kb-key.hover { border-color: var(--text-secondary); background: #1c2333; }
 .kb-key.flash-correct { background: rgba(46,204,113,0.3); border-color: var(--green); }
 .kb-key.flash-wrong { background: rgba(231,76,60,0.3); border-color: var(--red); }
-.kb-key-wide { width: 64px; }
+.kb-key-wide { width: 86px; }
 
-/* BCI cursor dot — visibility controlled by JS mouseenter/leave */
+/* BCI cursor dot */
 #bci-cursor {
     position: absolute;
     width: 14px;
@@ -352,6 +400,7 @@ body {
     z-index: 20;
     transform: translate(-50%, -50%);
     transition: background 0.2s, box-shadow 0.2s;
+    display: none;
 }
 
 #bci-cursor.displaced {
@@ -375,8 +424,8 @@ body {
 
 #kb-typed {
     font-family: var(--font-mono);
-    font-size: 18px;
-    letter-spacing: 3px;
+    font-size: 22px;
+    letter-spacing: 4px;
 }
 
 #kb-typed .char-correct { color: var(--text-primary); }
@@ -405,6 +454,22 @@ body {
 #kb-status {
     font-size: 12px;
     min-height: 18px;
+}
+
+/* Key hint for James */
+#kb-controls-hint {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+#kb-controls-hint kbd {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
 }
 
 /* Pulsing red dot when artifact is active */
@@ -453,7 +518,7 @@ body {
 
 <!-- Three Signal Traces -->
 <div id="traces">
-    <div class="trace-wrap">
+    <div class="trace-wrap" id="trace-raw">
         <span class="trace-label" style="color:var(--text-secondary);">Raw broadband — ch 0</span>
         <canvas id="canvas-raw"></canvas>
     </div>
@@ -477,8 +542,15 @@ body {
         <span class="key-hint">[p]</span>
     </div>
     <div id="mouse-content">
+        <!-- Webcam PiP (mirrored) -->
+        <div id="webcam-pip">
+            <video id="webcam-video" autoplay playsinline muted></video>
+            <canvas id="webcam-overlay"></canvas>
+            <div id="webcam-status">Starting camera...</div>
+        </div>
+
         <div id="keyboard-demo">
-            <!-- Mode toggle -->
+            <!-- Header: mode toggle -->
             <div id="kb-header">
                 <div id="kb-mode-toggle">
                     <span class="kb-label">Mode:</span>
@@ -489,8 +561,13 @@ body {
                 </div>
             </div>
 
-            <!-- Keyboard with cursor overlay -->
+            <!-- Keyboard area + webcam PiP -->
             <div id="kb-area">
+
+                <!-- Trail canvas -->
+                <canvas id="trail-canvas"></canvas>
+
+                <!-- Keyboard grid -->
                 <div id="kb-grid">
                     <div class="kb-row">
                         <div class="kb-key" data-char="Q">Q</div>
@@ -528,10 +605,7 @@ body {
                 </div>
 
                 <!-- BCI cursor dot -->
-                <div id="bci-cursor" style="display:none;"></div>
-
-                <!-- Trail canvas -->
-                <canvas id="trail-canvas"></canvas>
+                <div id="bci-cursor"></div>
             </div>
 
             <!-- Output + status -->
@@ -544,12 +618,20 @@ body {
                 </div>
                 <div id="kb-status"></div>
             </div>
+
+            <!-- Key hint -->
+            <div id="kb-controls-hint">
+                <span>Press <kbd>Space</kbd> to inject artifact</span>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-// ===== Data & State =====
+// ══════════════════════════════════════════
+// DATA & STATE
+// ══════════════════════════════════════════
+
 let cleanData = [];
 let artifactData = [];
 let currentIndex = 0;
@@ -579,27 +661,42 @@ let stats = {
     total: 0,
     oursTP: 0, oursFP: 0, oursFN: 0,
     baseTP: 0, baseFP: 0, baseFN: 0,
-    oursDetected: 0,
-    baseDetected: 0,
+    oursDetected: 0, baseDetected: 0,
 };
 
-// Mouse panel
+// Panel
 let mousePanelExpanded = false;
+let webcamInitialized = false;
 
-// Keyboard state
+// Keyboard/cursor
 let kbMode = 'baseline';
 let kbTyped = [];
-let realMouseX = 0, realMouseY = 0;
 let cursorX = 0, cursorY = 0;
+let smoothedX = 0, smoothedY = 0;
 let artifactOffset = { x: 0, y: 0 };
 let trail = [];
 const MAX_TRAIL = 200;
 
-// Current window state (updated each tick for cursor logic)
+// Current window state (updated each tick)
 let currentWinState = { injected_type: null, ours_hit: false, baseline_hit: false };
 
+// Finger tracking
+let handX = 0.5, handY = 0.5;
+let handDetected = false;
+let handsInstance = null;
+let cameraInstance = null;
+let pinchActive = false;
+let usingMouseFallback = false;
 
-// ===== Data Loading =====
+// Manual artifact injection (James presses spacebar)
+let manualArtifactActive = false;
+let manualArtifactType = null;
+
+
+// ══════════════════════════════════════════
+// DATA LOADING
+// ══════════════════════════════════════════
+
 async function loadData() {
     try {
         const [cleanRes, artifactRes] = await Promise.all([
@@ -616,10 +713,12 @@ async function loadData() {
 }
 
 
-// ===== Canvas Sizing =====
+// ══════════════════════════════════════════
+// CANVAS SIZING
+// ══════════════════════════════════════════
+
 function resizeCanvases() {
-    const canvases = ['canvas-raw', 'canvas-ours', 'canvas-baseline'];
-    canvases.forEach(id => {
+    ['canvas-raw', 'canvas-ours', 'canvas-baseline'].forEach(id => {
         const c = document.getElementById(id);
         if (!c) return;
         const rect = c.parentElement.getBoundingClientRect();
@@ -629,7 +728,10 @@ function resizeCanvases() {
 }
 
 
-// ===== Stats =====
+// ══════════════════════════════════════════
+// STATS
+// ══════════════════════════════════════════
+
 function updateStatsFromWindow(win) {
     stats.total++;
     const gt = win.injected_type !== null;
@@ -640,8 +742,6 @@ function updateStatsFromWindow(win) {
         if (win.ours_hit) stats.oursFP++;
         if (win.baseline_hit) stats.baseFP++;
     }
-    if (win.ours_hit) stats.oursDetected++;
-    if (win.baseline_hit) stats.baseDetected++;
 }
 
 function updateStats() {
@@ -659,10 +759,12 @@ function updateStats() {
 }
 
 
-// ===== Artifact Highlighting (Fix 2: uniform red shading on ground truth) =====
+// ══════════════════════════════════════════
+// ARTIFACT HIGHLIGHTING
+// ══════════════════════════════════════════
+
 function drawArtifactShading(ctx, w, h, typeBuffer) {
     if (!highlightEnabled) return;
-
     const n = typeBuffer.length;
     let inArtifact = false;
     let startX = 0;
@@ -670,11 +772,7 @@ function drawArtifactShading(ctx, w, h, typeBuffer) {
     for (let i = 0; i < n; i++) {
         const x = (i / n) * w;
         const isArtifact = typeBuffer[i] !== null;
-
-        if (isArtifact && !inArtifact) {
-            inArtifact = true;
-            startX = x;
-        }
+        if (isArtifact && !inArtifact) { inArtifact = true; startX = x; }
         if (!isArtifact && inArtifact) {
             ctx.fillStyle = 'rgba(231, 76, 60, 0.15)';
             ctx.fillRect(startX, 0, x - startX, h);
@@ -688,7 +786,10 @@ function drawArtifactShading(ctx, w, h, typeBuffer) {
 }
 
 
-// ===== Trace Rendering (Fix 2: simplified — same shading on all traces) =====
+// ══════════════════════════════════════════
+// TRACE RENDERING
+// ══════════════════════════════════════════
+
 function renderTrace(canvasId, signalBuf, color) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
@@ -697,13 +798,10 @@ function renderTrace(canvasId, signalBuf, color) {
 
     ctx.fillStyle = '#161b22';
     ctx.fillRect(0, 0, w, h);
-
     if (signalBuf.length < 2) return;
 
-    // Same ground-truth shading on every trace
     drawArtifactShading(ctx, w, h, artifactTypeBuffer);
 
-    // Draw the signal line
     const yScale = h / (2 * MAX_AMPLITUDE);
     const yMid = h / 2;
     const n = signalBuf.length;
@@ -720,7 +818,10 @@ function renderTrace(canvasId, signalBuf, color) {
 }
 
 
-// ===== Playback =====
+// ══════════════════════════════════════════
+// PLAYBACK
+// ══════════════════════════════════════════
+
 function tick() {
     const data = injectEnabled ? artifactData : cleanData;
     if (data.length === 0) return;
@@ -728,15 +829,12 @@ function tick() {
 
     updateStatsFromWindow(win);
 
-    // Track current window state for cursor logic
     currentWinState = {
         injected_type: win.injected_type,
         ours_hit: win.ours_hit,
         baseline_hit: win.baseline_hit,
     };
-    updateKeyboardStatus();
 
-    // Queue points for smooth draining
     const pts = win.signal_ch0;
     pendingPoints.push(...pts);
     pendingTypeFlags.push(...new Array(pts.length).fill(win.injected_type));
@@ -747,9 +845,8 @@ function tick() {
     currentIndex++;
 }
 
-// Fix 4: Smooth scrolling with frame-based draining
 function renderLoop(timestamp) {
-    // Safety cap: if tab was backgrounded, don't let pending accumulate
+    // Safety cap
     if (pendingPoints.length > DISPLAY_POINTS) {
         const excess = pendingPoints.length - 200;
         pendingPoints.splice(0, excess);
@@ -758,7 +855,7 @@ function renderLoop(timestamp) {
         pendingBaseFlags.splice(0, excess);
     }
 
-    // Drain pending points smoothly
+    // Drain pending points
     if (pendingPoints.length > 0) {
         const framesPerTick = tickIntervalMs / 16.67;
         const pointsPerFrame = Math.ceil(pendingPoints.length / framesPerTick);
@@ -774,11 +871,9 @@ function renderLoop(timestamp) {
         oursHitBuffer.push(...oursBatch);
         baselineHitBuffer.push(...baseBatch);
 
-        // Build cleaned buffers
         oursCleanBuffer.push(...ptsBatch.map((v, i) => oursBatch[i] ? 0 : v));
         baselineCleanBuffer.push(...ptsBatch.map((v, i) => baseBatch[i] ? 0 : v));
 
-        // Trim all to DISPLAY_POINTS
         const max = DISPLAY_POINTS;
         if (signalBuffer.length > max) {
             signalBuffer = signalBuffer.slice(-max);
@@ -790,13 +885,12 @@ function renderLoop(timestamp) {
         }
     }
 
-    // Render all three traces
     renderTrace('canvas-raw', signalBuffer, '#ecf0f1');
     renderTrace('canvas-ours', oursCleanBuffer, '#2ecc71');
     renderTrace('canvas-baseline', baselineCleanBuffer, '#e67e22');
 
-    // Keyboard panel (only when expanded)
     if (mousePanelExpanded) {
+        updateArtifactOffset();
         updateBCICursor();
         renderTrailCanvas();
     }
@@ -829,21 +923,25 @@ function resetPlayback() {
 }
 
 
-// ===== Toggles =====
+// ══════════════════════════════════════════
+// TOGGLES
+// ══════════════════════════════════════════
+
 function onInjectToggle() {
     injectEnabled = document.getElementById('inject-toggle').checked;
     resetPlayback();
 }
-
 function onHighlightToggle() {
     highlightEnabled = document.getElementById('highlight-toggle').checked;
 }
-
 document.getElementById('inject-toggle').addEventListener('change', onInjectToggle);
 document.getElementById('highlight-toggle').addEventListener('change', onHighlightToggle);
 
 
-// ===== Mouse Panel (Fix 1: overlay, no layout changes) =====
+// ══════════════════════════════════════════
+// PANEL EXPAND/COLLAPSE
+// ══════════════════════════════════════════
+
 function toggleMousePanel() {
     mousePanelExpanded = !mousePanelExpanded;
     const panel = document.getElementById('mouse-panel');
@@ -854,6 +952,11 @@ function toggleMousePanel() {
         panel.classList.replace('collapsed', 'expanded');
         icon.textContent = '▼';
         text.textContent = 'Hide patient impact demo';
+
+        if (!webcamInitialized) {
+            webcamInitialized = true;
+            initWebcam();
+        }
     } else {
         panel.classList.replace('expanded', 'collapsed');
         icon.textContent = '▲';
@@ -862,85 +965,222 @@ function toggleMousePanel() {
 }
 
 
-// ===== Keyboard BCI Cursor (Fix 3) =====
-function isArtifactActive() {
-    if (!injectEnabled) return false;
-    return currentWinState.injected_type !== null;
+// ══════════════════════════════════════════
+// WEBCAM + MEDIAPIPE HANDS
+// ══════════════════════════════════════════
+
+async function initWebcam() {
+    const videoEl = document.getElementById('webcam-video');
+    const statusEl = document.getElementById('webcam-status');
+
+    try {
+        handsInstance = new Hands({
+            locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${file}`;
+            }
+        });
+
+        handsInstance.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 0,
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.5,
+        });
+
+        handsInstance.onResults(onHandResults);
+
+        cameraInstance = new Camera(videoEl, {
+            onFrame: async () => {
+                await handsInstance.send({ image: videoEl });
+            },
+            width: 320,
+            height: 240,
+        });
+        await cameraInstance.start();
+        statusEl.classList.add('hidden');
+        document.getElementById('bci-cursor').style.display = 'block';
+        console.log('MediaPipe Hands initialized');
+    } catch (err) {
+        console.error('Camera init failed:', err);
+        statusEl.textContent = 'Camera unavailable';
+        document.getElementById('webcam-pip').style.display = 'none';
+        enableMouseFallback();
+    }
 }
 
-function isDetectorFiring() {
-    // Does the current mode's detector fire on this window?
-    if (kbMode === 'ours') return currentWinState.ours_hit;
-    if (kbMode === 'baseline') return currentWinState.baseline_hit;
-    return false;
+function enableMouseFallback() {
+    usingMouseFallback = true;
+    const area = document.getElementById('kb-area');
+    area.style.cursor = 'none';
+
+    area.addEventListener('mousemove', (e) => {
+        const rect = area.getBoundingClientRect();
+        handX = (e.clientX - rect.left) / rect.width;
+        handY = (e.clientY - rect.top) / rect.height;
+        handDetected = true;
+        document.getElementById('bci-cursor').style.display = 'block';
+    });
+
+    area.addEventListener('mouseleave', () => {
+        document.getElementById('bci-cursor').style.display = 'none';
+    });
+
+    area.addEventListener('click', (e) => {
+        e.preventDefault();
+        onPinchClick();
+    });
+
+    console.log('Mouse fallback enabled');
 }
 
-// Mouse tracking on keyboard area
-const kbArea = document.getElementById('kb-area');
+function onHandResults(results) {
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+        const indexTip = landmarks[8];
 
-kbArea.addEventListener('mousemove', (e) => {
-    const rect = kbArea.getBoundingClientRect();
-    realMouseX = e.clientX - rect.left;
-    realMouseY = e.clientY - rect.top;
-});
+        // Mirror X
+        handX = 1.0 - indexTip.x;
+        handY = indexTip.y;
+        handDetected = true;
 
-kbArea.addEventListener('mouseleave', () => {
-    document.getElementById('bci-cursor').style.display = 'none';
-});
+        document.getElementById('bci-cursor').style.display = 'block';
+        drawFingerDot(indexTip.x, indexTip.y);
 
-kbArea.addEventListener('mouseenter', () => {
-    document.getElementById('bci-cursor').style.display = 'block';
-});
+        // Pinch detection
+        const thumbTip = landmarks[4];
+        const pinchDist = Math.sqrt(
+            (indexTip.x - thumbTip.x) ** 2 +
+            (indexTip.y - thumbTip.y) ** 2
+        );
+        if (pinchDist < 0.05 && !pinchActive) {
+            pinchActive = true;
+            onPinchClick();
+        }
+        if (pinchDist > 0.08) {
+            pinchActive = false;
+        }
+    } else {
+        handDetected = false;
+    }
+}
+
+function drawFingerDot(x, y) {
+    const canvas = document.getElementById('webcam-overlay');
+    const ctx = canvas.getContext('2d');
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.beginPath();
+    ctx.arc(x * canvas.width, y * canvas.height, 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#2ecc71';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x * canvas.width, y * canvas.height, 10, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(46,204,113,0.4)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+}
+
+
+// ══════════════════════════════════════════
+// ARTIFACT OFFSET (manual + playback)
+// ══════════════════════════════════════════
+
+function updateArtifactOffset() {
+    // Manual injection takes priority (James holding spacebar)
+    if (manualArtifactActive) {
+        const caught = (kbMode === 'ours');
+        if (!caught) {
+            artifactOffset.x += (Math.random() - 0.5) * 4;
+            artifactOffset.y += (Math.random() - 0.5) * 4;
+            return;  // don't decay
+        }
+        // If caught, offset stays at 0 (or decays below)
+    }
+
+    // Playback-based injection (from signal trace data)
+    if (injectEnabled && !manualArtifactActive) {
+        const playbackArtifact = currentWinState.injected_type !== null;
+        if (playbackArtifact) {
+            const caught = (kbMode === 'ours') ? currentWinState.ours_hit : currentWinState.baseline_hit;
+            if (!caught && artifactOffset.x === 0 && artifactOffset.y === 0) {
+                const magnitude = 40 + Math.random() * 30;
+                const angle = Math.random() * Math.PI * 2;
+                artifactOffset.x = Math.cos(angle) * magnitude;
+                artifactOffset.y = Math.sin(angle) * magnitude;
+            }
+            if (!caught) {
+                artifactOffset.x += (Math.random() - 0.5) * 3;
+                artifactOffset.y += (Math.random() - 0.5) * 3;
+                return;
+            }
+        }
+    }
+
+    // Decay toward zero
+    artifactOffset.x *= 0.85;
+    artifactOffset.y *= 0.85;
+    if (Math.abs(artifactOffset.x) < 1 && Math.abs(artifactOffset.y) < 1) {
+        artifactOffset.x = 0;
+        artifactOffset.y = 0;
+    }
+}
+
+
+// ══════════════════════════════════════════
+// BCI CURSOR
+// ══════════════════════════════════════════
 
 function updateBCICursor() {
-    const artifactActive = isArtifactActive();
-    const detectorFiring = isDetectorFiring();
-    const displaced = artifactActive && !detectorFiring;  // artifact present but missed
-    const frozen = detectorFiring;  // window blanked → no decoder input → cursor holds
+    if (!handDetected) return;
 
-    if (displaced) {
-        if (artifactOffset.x === 0 && artifactOffset.y === 0) {
-            const magnitude = 40 + Math.random() * 40;
-            const angle = Math.random() * Math.PI * 2;
-            artifactOffset.x = Math.cos(angle) * magnitude;
-            artifactOffset.y = Math.sin(angle) * magnitude;
-        }
-        artifactOffset.x += (Math.random() - 0.5) * 3;
-        artifactOffset.y += (Math.random() - 0.5) * 3;
-    } else {
-        artifactOffset.x *= 0.85;
-        artifactOffset.y *= 0.85;
-        if (Math.abs(artifactOffset.x) < 1 && Math.abs(artifactOffset.y) < 1) {
-            artifactOffset.x = 0;
-            artifactOffset.y = 0;
-        }
-    }
+    const kbArea = document.getElementById('kb-area');
+    const areaW = kbArea.offsetWidth;
+    const areaH = kbArea.offsetHeight;
 
-    // When frozen (detector fired → window blanked), hold cursor at last position
-    if (!frozen) {
-        const targetX = realMouseX + artifactOffset.x;
-        const targetY = realMouseY + artifactOffset.y;
+    // Map hand position (0-1) to keyboard area
+    const HAND_X_MIN = 0.2, HAND_X_MAX = 0.8;
+    const HAND_Y_MIN = 0.2, HAND_Y_MAX = 0.7;
 
-        // Lerp toward target (0.7 = slightly dampened, feels like decoded BCI cursor)
-        const sensitivity = 0.7;
-        cursorX += (targetX - cursorX) * sensitivity;
-        cursorY += (targetY - cursorY) * sensitivity;
+    const normX = Math.max(0, Math.min(1, (handX - HAND_X_MIN) / (HAND_X_MAX - HAND_X_MIN)));
+    const normY = Math.max(0, Math.min(1, (handY - HAND_Y_MIN) / (HAND_Y_MAX - HAND_Y_MIN)));
 
-        const area = document.getElementById('kb-area');
-        cursorX = Math.max(0, Math.min(area.offsetWidth, cursorX));
-        cursorY = Math.max(0, Math.min(area.offsetHeight, cursorY));
-    }
+    const rawCursorX = normX * areaW;
+    const rawCursorY = normY * areaH;
 
+    // Low-pass filter
+    const SMOOTHING = 0.3;
+    smoothedX = smoothedX * SMOOTHING + rawCursorX * (1 - SMOOTHING);
+    smoothedY = smoothedY * SMOOTHING + rawCursorY * (1 - SMOOTHING);
+
+    // Apply artifact offset
+    cursorX = smoothedX + artifactOffset.x;
+    cursorY = smoothedY + artifactOffset.y;
+
+    // Clamp
+    cursorX = Math.max(0, Math.min(areaW, cursorX));
+    cursorY = Math.max(0, Math.min(areaH, cursorY));
+
+    // Position dot
     const dot = document.getElementById('bci-cursor');
     dot.style.left = cursorX + 'px';
     dot.style.top = cursorY + 'px';
+
+    const displaced = artifactOffset.x !== 0 || artifactOffset.y !== 0;
     dot.classList.toggle('displaced', displaced);
 
+    // Trail
     trail.push({ x: cursorX, y: cursorY, displaced });
     if (trail.length > MAX_TRAIL) trail = trail.slice(-MAX_TRAIL);
 
     updateKeyHover(cursorX, cursorY);
 }
+
+
+// ══════════════════════════════════════════
+// KEY DETECTION & CLICK
+// ══════════════════════════════════════════
 
 function updateKeyHover(cx, cy) {
     document.querySelectorAll('.kb-key.hover').forEach(k => k.classList.remove('hover'));
@@ -958,18 +1198,12 @@ function getKeyAtPosition(x, y) {
         const ky = rect.top - areaRect.top;
         const kw = rect.width;
         const kh = rect.height;
-
-        if (x >= kx && x <= kx + kw && y >= ky && y <= ky + kh) {
-            return key;
-        }
+        if (x >= kx && x <= kx + kw && y >= ky && y <= ky + kh) return key;
     }
     return null;
 }
 
-// Click registers key under BCI cursor, not real mouse
-kbArea.addEventListener('click', (e) => {
-    e.preventDefault();
-
+function onPinchClick() {
     const key = getKeyAtPosition(cursorX, cursorY);
     if (!key) return;
 
@@ -981,35 +1215,32 @@ kbArea.addEventListener('click', (e) => {
         return;
     }
 
-    // Determine intended key (under real mouse)
-    const areaRect = kbArea.getBoundingClientRect();
-    const realKey = getKeyAtPosition(
-        e.clientX - areaRect.left,
-        e.clientY - areaRect.top
-    );
-    const intendedChar = realKey ? realKey.dataset.char : null;
-    const correct = char === intendedChar;
+    // Check what letter the un-displaced cursor is over
+    const rawKey = getKeyAtPosition(smoothedX, smoothedY);
+    const intendedChar = rawKey ? rawKey.dataset.char : null;
+    const correct = (char === intendedChar);
 
     kbTyped.push({ actual: char, correct });
 
-    // Flash feedback
     const cls = correct ? 'flash-correct' : 'flash-wrong';
     key.classList.add(cls);
     setTimeout(() => key.classList.remove(cls), 300);
 
     renderTypedOutput();
-});
+}
 
-// Trail rendering
+
+// ══════════════════════════════════════════
+// TRAIL RENDERING
+// ══════════════════════════════════════════
+
 function renderTrailCanvas() {
     const canvas = document.getElementById('trail-canvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-
     const area = document.getElementById('kb-area');
     canvas.width = area.offsetWidth;
     canvas.height = area.offsetHeight;
-
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     for (let i = 1; i < trail.length; i++) {
@@ -1024,7 +1255,11 @@ function renderTrailCanvas() {
     ctx.globalAlpha = 1;
 }
 
-// Mode toggle
+
+// ══════════════════════════════════════════
+// MODE TOGGLE & TYPED OUTPUT
+// ══════════════════════════════════════════
+
 function setMode(mode) {
     kbMode = mode;
     document.getElementById('mode-baseline').classList.toggle('active', mode === 'baseline');
@@ -1048,42 +1283,103 @@ function renderTypedOutput() {
     document.getElementById('kb-typed').innerHTML = html;
 }
 
-// Keyboard status indicator
+
+// ══════════════════════════════════════════
+// MANUAL ARTIFACT INJECTION (James' keyboard)
+// ══════════════════════════════════════════
+
+function injectManualArtifact(type) {
+    manualArtifactActive = true;
+    manualArtifactType = type;
+
+    const caught = (kbMode === 'ours');
+    if (!caught) {
+        const magnitude = 50 + Math.random() * 40;
+        const angle = Math.random() * Math.PI * 2;
+        artifactOffset.x = Math.cos(angle) * magnitude;
+        artifactOffset.y = Math.sin(angle) * magnitude;
+    }
+
+    flashArtifactOnTraces();
+    updateKeyboardStatus();
+}
+
+function releaseManualArtifact() {
+    manualArtifactActive = false;
+    manualArtifactType = null;
+    updateKeyboardStatus();
+}
+
+function flashArtifactOnTraces() {
+    const rawWrap = document.getElementById('trace-raw');
+    if (!rawWrap) return;
+    rawWrap.style.boxShadow = 'inset 0 0 20px rgba(231,76,60,0.3)';
+    setTimeout(() => { rawWrap.style.boxShadow = ''; }, 300);
+}
+
+
+// ══════════════════════════════════════════
+// KEYBOARD STATUS INDICATOR
+// ══════════════════════════════════════════
+
 function updateKeyboardStatus() {
     if (!mousePanelExpanded) return;
-
     const el = document.getElementById('kb-status');
-    const active = isArtifactActive();
-    const firing = isDetectorFiring();
 
-    if (!injectEnabled || !active) {
-        el.innerHTML = '';
-    } else if (firing) {
-        el.innerHTML = '<span style="color:var(--green);">● Artifact caught — cursor stable</span>';
+    if (manualArtifactActive) {
+        const caught = (kbMode === 'ours');
+        if (caught) {
+            el.innerHTML = '<span style="color:var(--green);">● Artifact caught — cursor stable</span>';
+        } else {
+            el.innerHTML = '<span class="artifact-dot"></span> <span style="color:var(--red);">Artifact injected — cursor displaced</span>';
+        }
+    } else if (!handDetected && !usingMouseFallback) {
+        el.innerHTML = '<span style="color:var(--text-secondary);">Point your finger at the screen</span>';
     } else {
-        el.innerHTML = '<span class="artifact-dot"></span> <span style="color:var(--red);">Artifact active — cursor displaced</span>';
+        el.innerHTML = '';
     }
 }
 
 
-// ===== Keyboard Shortcuts =====
+// ══════════════════════════════════════════
+// KEYBOARD SHORTCUTS
+// ══════════════════════════════════════════
+
 document.addEventListener('keydown', (e) => {
+    // Artifact injection (James)
+    if (e.code === 'Space' && !manualArtifactActive && mousePanelExpanded) {
+        e.preventDefault();
+        injectManualArtifact('spike');
+    }
+
     if (e.key === 'p') toggleMousePanel();
     if (e.key === 'i') {
         const toggle = document.getElementById('inject-toggle');
         toggle.checked = !toggle.checked;
         onInjectToggle();
     }
+    if (e.key === 'c' && mousePanelExpanded) clearTyped();
+});
+
+document.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') {
+        e.preventDefault();
+        releaseManualArtifact();
+    }
 });
 
 
-// ===== Window Resize =====
-window.addEventListener('resize', () => {
-    resizeCanvases();
-});
+// ══════════════════════════════════════════
+// WINDOW RESIZE
+// ══════════════════════════════════════════
+
+window.addEventListener('resize', resizeCanvases);
 
 
-// ===== Init =====
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+
 loadData();
 </script>
 </body>
