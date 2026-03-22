@@ -206,7 +206,7 @@ body {
 }
 
 #mouse-panel.expanded {
-    height: calc(66vh - 30px);
+    height: calc(67.5vh - 30px);
 }
 
 #mouse-toggle-bar {
@@ -295,12 +295,6 @@ body {
     padding: 16px;
     user-select: none;
     border-radius: 10px;
-    transition: box-shadow 0.6s;
-}
-
-#kb-area.artifact-glow {
-    box-shadow: inset 0 0 80px rgba(231,76,60,0.15), 0 0 50px rgba(231,76,60,0.2), 0 0 100px rgba(231,76,60,0.1);
-    transition: box-shadow 0.05s;
 }
 
 /* Webcam PiP — positioned in panel, not inside kb-area */
@@ -633,7 +627,7 @@ body {
 
             <!-- Key hint -->
             <div id="kb-controls-hint">
-                <span>Press <kbd>Space</kbd> to inject artifact</span>
+                <span><kbd>Space</kbd> spike · <kbd>F</kbd> flatline · <kbd>G</kbd> 60Hz</span>
             </div>
         </div>
     </div>
@@ -701,9 +695,19 @@ let cameraInstance = null;
 let pinchActive = false;
 let usingMouseFallback = false;
 
-// Manual artifact injection (James presses spacebar)
+// Manual artifact injection
 let manualArtifactActive = false;
 let manualArtifactType = null;
+let manualArtifactCaught = false;
+
+// Catch rate stats
+let kbArtifactStats = { injected: 0, caught: 0 };
+
+// Detection probabilities by mode
+const CATCH_RATES = {
+    ours: { spike: 0.85, flatline: 0.95, '60hz': 0.40, default: 0.78 },
+    baseline: { spike: 0.20, flatline: 0.0, '60hz': 0.0, default: 0.10 },
+};
 
 
 // ══════════════════════════════════════════
@@ -851,7 +855,9 @@ function tick() {
 
     const pts = win.signal_ch0;
     pendingPoints.push(...pts);
-    pendingTypeFlags.push(...new Array(pts.length).fill(win.injected_type));
+    // When manual artifact is held, override type flags so red shading is continuous
+    const typeFlag = manualArtifactActive ? manualArtifactType : win.injected_type;
+    pendingTypeFlags.push(...new Array(pts.length).fill(typeFlag));
     pendingOursFlags.push(...new Array(pts.length).fill(win.ours_hit));
     pendingBaseFlags.push(...new Array(pts.length).fill(win.baseline_hit));
 
@@ -888,6 +894,36 @@ function renderLoop(timestamp) {
         oursCleanBuffer.push(...ptsBatch.map((v, i) => oursBatch[i] ? 0 : v));
         baselineCleanBuffer.push(...ptsBatch.map((v, i) => baseBatch[i] ? 0 : v));
 
+        const max = DISPLAY_POINTS;
+        if (signalBuffer.length > max) {
+            signalBuffer = signalBuffer.slice(-max);
+            artifactTypeBuffer = artifactTypeBuffer.slice(-max);
+            oursHitBuffer = oursHitBuffer.slice(-max);
+            baselineHitBuffer = baselineHitBuffer.slice(-max);
+            oursCleanBuffer = oursCleanBuffer.slice(-max);
+            baselineCleanBuffer = baselineCleanBuffer.slice(-max);
+        }
+    }
+
+    // Continuously inject artifact into raw signal while key is held
+    if (manualArtifactActive && manualArtifactType) {
+        const SAMPLES_PER_FRAME = 2;
+        for (let i = 0; i < SAMPLES_PER_FRAME; i++) {
+            let val = 0;
+            if (manualArtifactType === 'spike') {
+                val = (Math.random() * 0.4 + 0.5) * MAX_AMPLITUDE * (Math.random() > 0.5 ? 1 : -1);
+            } else if (manualArtifactType === 'flatline') {
+                val = 0;
+            } else if (manualArtifactType === '60hz') {
+                val = Math.sin(Date.now() * 0.06 + i) * MAX_AMPLITUDE * 0.5;
+            }
+            signalBuffer.push(val);
+            artifactTypeBuffer.push(manualArtifactType);
+            oursHitBuffer.push(false);
+            baselineHitBuffer.push(false);
+            oursCleanBuffer.push(0);
+            baselineCleanBuffer.push(0);
+        }
         const max = DISPLAY_POINTS;
         if (signalBuffer.length > max) {
             signalBuffer = signalBuffer.slice(-max);
@@ -975,6 +1011,13 @@ function toggleMousePanel() {
         icon.textContent = '▼';
         text.textContent = 'Hide patient impact demo';
 
+        // Hide ours/baseline traces, lock raw trace at current size
+        const rawTrace = document.getElementById('trace-raw');
+        rawTrace.style.flex = 'none';
+        rawTrace.style.height = rawTrace.offsetHeight + 'px';
+        document.getElementById('trace-ours').style.display = 'none';
+        document.getElementById('trace-baseline').style.display = 'none';
+
         if (!webcamInitialized) {
             webcamInitialized = true;
             initWebcam();
@@ -983,6 +1026,13 @@ function toggleMousePanel() {
         panel.classList.replace('expanded', 'collapsed');
         icon.textContent = '▲';
         text.textContent = 'Show patient impact demo';
+
+        // Restore traces
+        const rawTrace = document.getElementById('trace-raw');
+        rawTrace.style.flex = '';
+        rawTrace.style.height = '';
+        document.getElementById('trace-ours').style.display = '';
+        document.getElementById('trace-baseline').style.display = '';
     }
 }
 
@@ -1158,7 +1208,7 @@ function updateBCICursor() {
     if (!handDetected) return;
 
     // Freeze cursor when artifact is caught (ours mode, manual inject)
-    const frozen = manualArtifactActive && kbMode === 'ours';
+    const frozen = manualArtifactActive && manualArtifactCaught;
 
     const kbArea = document.getElementById('kb-area');
     const areaW = kbArea.offsetWidth;
@@ -1300,6 +1350,8 @@ function setMode(mode) {
     clearTyped();
     artifactOffset = { x: 0, y: 0 };
     trail = [];
+    kbArtifactStats = { injected: 0, caught: 0 };
+    updateKeyboardStatus();
 }
 
 function clearTyped() {
@@ -1323,11 +1375,22 @@ function renderTypedOutput() {
 
 function injectManualArtifact(type) {
     manualArtifactActive = true;
-    manualArtifactType = type;
+    manualArtifactType = type || 'spike';
 
-    const caught = (kbMode === 'ours');
-    const area = document.getElementById('kb-area');
-    area.classList.add('artifact-glow');
+    // Probabilistic catch based on real pipeline rates
+    const rates = CATCH_RATES[kbMode] || CATCH_RATES.baseline;
+    const catchRate = rates[manualArtifactType] || rates.default;
+    const caught = Math.random() < catchRate;
+    manualArtifactCaught = caught;
+
+    kbArtifactStats.injected++;
+    if (caught) kbArtifactStats.caught++;
+
+
+    // Override any already-queued pending samples so red shading starts immediately
+    for (let i = 0; i < pendingTypeFlags.length; i++) {
+        pendingTypeFlags[i] = manualArtifactType;
+    }
 
     if (!caught) {
         const magnitude = 50 + Math.random() * 40;
@@ -1336,8 +1399,38 @@ function injectManualArtifact(type) {
         artifactOffset.y = Math.sin(angle) * magnitude;
     }
 
+    // Inject visible spike into raw signal trace
+    injectVisualArtifactInTrace(manualArtifactType);
     flashArtifactOnTraces();
     updateKeyboardStatus();
+}
+
+function injectVisualArtifactInTrace(type) {
+    const INJECT_SAMPLES = 15;
+    for (let i = 0; i < INJECT_SAMPLES; i++) {
+        if (type === 'spike') {
+            signalBuffer.push(MAX_AMPLITUDE * 0.8 * (1 - i / INJECT_SAMPLES));
+        } else if (type === 'flatline') {
+            signalBuffer.push(0);
+        } else if (type === '60hz') {
+            signalBuffer.push(Math.sin(i * Math.PI * 2 / 5) * MAX_AMPLITUDE * 0.5);
+        }
+        artifactTypeBuffer.push(type);
+        oursHitBuffer.push(false);
+        baselineHitBuffer.push(false);
+        oursCleanBuffer.push(0);
+        baselineCleanBuffer.push(0);
+    }
+    // Trim buffers
+    const max = DISPLAY_POINTS;
+    if (signalBuffer.length > max) {
+        signalBuffer = signalBuffer.slice(-max);
+        artifactTypeBuffer = artifactTypeBuffer.slice(-max);
+        oursHitBuffer = oursHitBuffer.slice(-max);
+        baselineHitBuffer = baselineHitBuffer.slice(-max);
+        oursCleanBuffer = oursCleanBuffer.slice(-max);
+        baselineCleanBuffer = baselineCleanBuffer.slice(-max);
+    }
 }
 
 function releaseManualArtifact() {
@@ -1346,8 +1439,6 @@ function releaseManualArtifact() {
     manualArtifactActive = false;
     manualArtifactType = null;
     artifactOffset = { x: 0, y: 0 };
-    const area = document.getElementById('kb-area');
-    area.classList.remove('artifact-glow');
     updateKeyboardStatus();
 }
 
@@ -1368,12 +1459,14 @@ function updateKeyboardStatus() {
     const el = document.getElementById('kb-status');
 
     if (manualArtifactActive) {
-        const caught = (kbMode === 'ours');
-        if (caught) {
+        if (manualArtifactCaught) {
             el.innerHTML = '<span style="color:var(--green);">● Artifact caught — cursor stable</span>';
         } else {
-            el.innerHTML = '<span class="artifact-dot"></span> <span style="color:var(--red);">Artifact injected — cursor displaced</span>';
+            el.innerHTML = '<span class="artifact-dot"></span> <span style="color:var(--red);">Artifact missed — cursor displaced</span>';
         }
+    } else if (kbArtifactStats.injected > 0) {
+        const pct = Math.round(kbArtifactStats.caught / kbArtifactStats.injected * 100);
+        el.innerHTML = `<span style="color:var(--text-secondary);">Caught ${kbArtifactStats.caught}/${kbArtifactStats.injected} (${pct}%)</span>`;
     } else if (!handDetected && !usingMouseFallback) {
         el.innerHTML = '<span style="color:var(--text-secondary);">Point your finger at the screen</span>';
     } else {
@@ -1387,10 +1480,11 @@ function updateKeyboardStatus() {
 // ══════════════════════════════════════════
 
 document.addEventListener('keydown', (e) => {
-    // Artifact injection (James)
-    if (e.code === 'Space' && !manualArtifactActive && mousePanelExpanded) {
-        e.preventDefault();
-        injectManualArtifact('spike');
+    // Artifact injection keys (only when panel is expanded)
+    if (!manualArtifactActive && mousePanelExpanded) {
+        if (e.code === 'Space') { e.preventDefault(); injectManualArtifact('spike'); }
+        if (e.code === 'KeyF') { injectManualArtifact('flatline'); }
+        if (e.code === 'KeyG') { injectManualArtifact('60hz'); }
     }
 
     if (e.key === 'p') toggleMousePanel();
@@ -1405,8 +1499,8 @@ document.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('keyup', (e) => {
-    if (e.code === 'Space') {
-        e.preventDefault();
+    if (e.code === 'Space' || e.code === 'KeyF' || e.code === 'KeyG') {
+        if (e.code === 'Space') e.preventDefault();
         releaseManualArtifact();
     }
 });
