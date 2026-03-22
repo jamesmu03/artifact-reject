@@ -80,7 +80,7 @@ They work by decoding electrical signals from the brain — signals that are eas
 
 Hardware has improved — better electrodes, better shielding. But real-time software artifact rejection in the signal pipeline is still fragmented and lab-specific.
 
-The standard software filter uses a fixed amplitude cutoff. In practice, it **misses 87% of artifacts** and can't detect power line interference at all — which is spectrally invisible to any amplitude check.
+The standard software approach — a per-channel z-score threshold — **misses 87% of artifacts** and can't detect power line interference at all.
 
 Every lab recalibrates manually. No standard solution exists across devices or patients.
 
@@ -101,7 +101,7 @@ Detected windows are blanked before reaching the decoder — a neutral output is
 
 # Results
 
-| | artifact-reject | Standard filter |
+| | artifact-reject | Z-score baseline (5σ) |
 |--|--|--|
 | Artifacts detected | **83%** | 13% |
 | Clean signal preserved | **85%** | 95% |
@@ -112,8 +112,23 @@ Detected windows are blanked before reaching the decoder — a neutral output is
 
 <!-- _class: title -->
 
+# Live demo
+
+See what artifact rejection feels like —
+control a BCI keyboard with your finger,
+with and without our filter.
+
+---
+
+<!-- _class: title -->
+
 # Thank You
 
+James Mu (Duke) · Derek Mu (CMU)
+
 `github.com/jamesmu/artifact-reject`
+
+Drop-in artifact rejection for the Synapse neural interface platform.
+Zero configuration. Real-time. Open source.
 
 *Hack Duke · 2026*

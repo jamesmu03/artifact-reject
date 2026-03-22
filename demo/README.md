@@ -63,8 +63,15 @@ Open [http://localhost:8000/index.html](http://localhost:8000/index.html) in you
 
 | Action | How |
 |--------|-----|
-| Toggle artifact injection | Click the toggle switch in the sidebar, or press **`i`** |
-| Watch the speller | Both grids spell the same words — the left (no rejection) makes errors, the right (with rejection) stays accurate |
+| Toggle artifact injection | Inject toggle in the status bar |
+| Toggle red highlighting | Highlight toggle in the status bar |
+| Open keyboard demo | Press **`p`** or click the keyboard panel |
+| Switch mode | Press **←/→** arrows, or click Baseline/Ours buttons |
+| Inject artifacts manually | Hold **Space** (spike), **F** (flatline), **G** (60Hz) |
+| Pause/resume signal | Click ⏸ Pause in the status bar |
+| Adjust speed | Click −/+ in the status bar |
+| Toggle light/dark mode | Click ☀️/🌙 in the status bar |
+| Enable finger tracking | Click the webcam placeholder |
 
 ## File Structure
 
@@ -81,14 +88,16 @@ demo/
 
 | Component | Description |
 |-----------|-------------|
-| **Status bar** | Green pulsing dot, channel/sample-rate info, elapsed timer |
-| **Artifact gallery** | Three static cards explaining spike, 60 Hz, and flatline artifacts |
-| **Raw signal** | White trace on dark background, red shading on artifact windows |
-| **Cleaned signal** | Green trace, artifact windows blanked to zero |
-| **Stats sidebar** | Precision, Recall, Artifact count, Clean signal % (2×2 grid) |
-| **Inject toggle** | Switches between clean and artifact datasets, resets stats |
-| **Cursor speller** | Side-by-side BCI cursor grids spelling HELP, WATER, YES, PAIN |
-| **Event log** | Scrolling bar showing recent rejection events |
+| **Status bar** | Green pulsing dot, channel/sample-rate info, inject/highlight toggles, speed controls, pause, theme toggle |
+| **Raw signal trace** | White trace on dark background, red shading on artifact windows. Compresses to a strip when keyboard panel is expanded |
+| **Ours (MAD + FFT) trace** | Green trace showing cleaned signal with detected artifacts blanked |
+| **Baseline (z-score) trace** | Orange trace showing z-score baseline output for comparison |
+| **Inject toggle** | Switches between clean and artifact datasets |
+| **Highlight toggle** | Toggles red artifact shading on/off |
+| **Keyboard panel** | Expandable panel (press `p`) with finger-tracking BCI keyboard demo |
+| **Webcam PiP** | Click to enable finger tracking via MediaPipe Hands (or use mouse fallback) |
+| **Mode toggle** | Switch between Baseline and Ours mode to compare artifact impact on cursor |
+| **Artifact injection** | Press Space (spike), F (flatline), G (60Hz) to inject manual artifacts during keyboard demo |
 
 ## Data Format
 
@@ -104,14 +113,12 @@ Each JSON file is an array of window objects:
   "mad_channels": [],
   "fft_hit": false,
   "fft_ratio": 1.2,
-  "fixed_hit": false,
-  "fixed_channels": []
+  "baseline_hit": false
 }
 ```
 
 ## Customisation
 
 - **Longer playback:** Change `N_WINDOWS` in `generate_data.py` (e.g., 600 for 60 seconds)
-- **Different injection rate:** Modify `INJECT_PROB` in `client/artifact_reject.py`
-- **Target words:** Edit `TARGET_WORDS` array in `index.html`
-- **Tick speed:** Change the `setInterval(tick, 100)` value (100ms = real-time matching the 100ms window)
+- **Different injection rate:** Modify `INJECT_PROB` in `generate_data.py`
+- **Tick speed:** Adjust `tickIntervalMs` in `index.html` (default 250ms) or use the ±speed controls in the UI

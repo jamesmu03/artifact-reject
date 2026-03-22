@@ -55,7 +55,7 @@ We run two detectors in parallel on each 100ms window of broadband data:
 
 ### Baseline comparison
 
-We compare against the **industry standard**: a fixed amplitude threshold. If any sample exceeds a hardcoded value, reject the window. Simple, fast, widely used — but brittle. It requires manual recalibration for every new signal range, and cannot detect 60 Hz noise at all.
+We compare against the standard approach: a **per-channel z-score baseline** (5σ threshold). If any sample exceeds 5 standard deviations from the channel mean, reject the window. Simple, fast, widely used — but brittle. It requires the signal to have stable variance, completely misses flatlines (std → 0), and cannot detect 60 Hz noise at all.
 
 ## Results
 
@@ -63,10 +63,10 @@ On synthetic Gaussian neural signal (32 channels, 30 kHz, std=150 μV) with 18% 
 
 | Detector | Precision | Recall | Clean signal preserved |
 |---|---|---|---|
-| **Ours (MAD + FFT)** | **100%** | **100%** | **82%** |
-| Fixed threshold | 17.5% | 100% | 0% |
+| **Ours (MAD + FFT)** | **83%** | **63%** | **85%** |
+| Z-score baseline (5σ) | 50% | 13% | 95% |
 
-The fixed threshold over-suppresses — it blanks 100% of windows because it can't adapt to the signal's amplitude range. Our method surgically removes only artifact windows.
+Our method catches 5× more artifacts while preserving 85% of clean signal. Built as a tap for **Science Corp's Synapse** — the emerging industry standard for neural data pipelines — so it works out of the box for any lab or device running on Synapse, with no changes to the recording setup.
 
 ## Usage
 
@@ -105,3 +105,9 @@ jupyter notebook notebook/demo.ipynb
 > pip install science-synapse
 > ```
 > Or follow the [synapse-python setup instructions](https://github.com/sciencecorp/synapse-python) to install from source.
+
+## Contributors
+
+**James Mu** (Duke University) — Signal processing pipeline, artifact detection algorithms (MAD + FFT), Synapse tap integration, synthetic data generation, baseline comparison, Jupyter notebook analysis.
+
+**Derek Mu** (Carnegie Mellon University) — Browser-based demo UI, finger-tracking keyboard visualization, data pipeline for demo replay.
