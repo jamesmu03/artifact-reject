@@ -22,6 +22,21 @@
     --yellow: #f1c40f;
     --font-main: system-ui, -apple-system, 'Segoe UI', sans-serif;
     --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    --signal-color: #ecf0f1;
+}
+
+body.light-mode {
+    --bg-primary: #bfc3cb;
+    --bg-card: #cacdd4;
+    --border: #a8adb6;
+    --text-primary: #1a1f2e;
+    --text-secondary: #555d6e;
+    --green: #16a34a;
+    --red: #dc2626;
+    --orange: #ea580c;
+    --blue: #2563eb;
+    --yellow: #ca8a04;
+    --signal-color: #2d3340;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -516,6 +531,8 @@ body {
         </label>
         <span class="divider">|</span>
         <button id="pause-btn" onclick="togglePause()" style="background:none;border:1px solid var(--border);color:var(--text-secondary);padding:3px 10px;border-radius:4px;font-size:12px;cursor:pointer;font-family:var(--font-main);">⏸ Pause</button>
+        <span class="divider">|</span>
+        <button id="theme-btn" onclick="toggleTheme()" style="background:none;border:1px solid var(--border);color:var(--text-secondary);padding:3px 10px;border-radius:4px;font-size:12px;cursor:pointer;font-family:var(--font-main);">☀️ Light</button>
     </div>
 </div>
 
@@ -813,7 +830,7 @@ function renderTrace(canvasId, signalBuf, color) {
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
 
-    ctx.fillStyle = '#161b22';
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--bg-card').trim();
     ctx.fillRect(0, 0, w, h);
     if (signalBuf.length < 2) return;
 
@@ -935,9 +952,9 @@ function renderLoop(timestamp) {
         }
     }
 
-    renderTrace('canvas-raw', signalBuffer, '#ecf0f1');
-    renderTrace('canvas-ours', oursCleanBuffer, '#2ecc71');
-    renderTrace('canvas-baseline', baselineCleanBuffer, '#e67e22');
+    renderTrace('canvas-raw', signalBuffer, getComputedStyle(document.body).getPropertyValue('--signal-color').trim());
+    renderTrace('canvas-ours', oursCleanBuffer, getComputedStyle(document.body).getPropertyValue('--green').trim());
+    renderTrace('canvas-baseline', baselineCleanBuffer, getComputedStyle(document.body).getPropertyValue('--orange').trim());
 
     if (mousePanelExpanded) {
         updateArtifactOffset();
@@ -991,6 +1008,11 @@ function togglePause() {
     const dot = document.querySelector('.pulse-dot');
     dot.style.animationPlayState = paused ? 'paused' : 'running';
     dot.style.background = paused ? 'var(--orange)' : 'var(--green)';
+}
+function toggleTheme() {
+    document.body.classList.toggle('light-mode');
+    const isLight = document.body.classList.contains('light-mode');
+    document.getElementById('theme-btn').textContent = isLight ? '🌙 Dark' : '☀️ Light';
 }
 document.getElementById('inject-toggle').addEventListener('change', onInjectToggle);
 document.getElementById('highlight-toggle').addEventListener('change', onHighlightToggle);
