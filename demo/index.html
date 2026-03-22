@@ -68,18 +68,93 @@ body {
 }
 #status-bar .right span { display: flex; align-items: center; gap: 4px; }
 
-/* Artifact gallery */
-#gallery {
+/* ── Scenes ── */
+.scene {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.scene-text {
+    text-align: center;
+    padding: 24px 40px;
+}
+.scene-text h1 {
+    font-size: 28px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+.scene-text p {
+    font-size: 16px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+}
+
+/* ── Canvas shared ── */
+.canvas-wrap {
+    position: relative;
+    background: var(--bg-card);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+.canvas-wrap .label {
+    position: absolute;
+    top: 6px;
+    left: 10px;
+    font-size: 11px;
+    z-index: 1;
+    pointer-events: none;
+}
+.canvas-wrap canvas { display: block; width: 100%; height: 100%; }
+.label-raw { color: var(--text-secondary); }
+.label-clean { color: var(--green); }
+
+/* ── Scene 1: Intro ── */
+#scene-intro {
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+}
+#intro-signal {
+    flex: 1;
+    padding: 24px 40px 12px;
+    width: 100%;
+    min-height: 0;
+}
+#intro-signal .canvas-wrap {
+    height: 100%;
+}
+
+/* ── Scene 2: Artifacts ── */
+#scene-artifacts {
+    gap: 0;
+}
+#artifacts-signal {
+    flex: 1;
+    padding: 12px 40px 8px;
+    min-height: 0;
+}
+#artifacts-signal .canvas-wrap {
+    height: 100%;
+}
+#artifacts-gallery {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 24px;
-    padding: 14px 20px;
-    background: var(--bg-primary);
-    border-bottom: 1px solid var(--border);
+    padding: 10px 20px 6px;
     flex-shrink: 0;
+    opacity: 0;
+    animation: fadeInUp 0.5s 0.3s forwards;
 }
-#gallery h3 {
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+#artifacts-gallery h3 {
     font-size: 12px;
     color: var(--text-secondary);
     text-transform: uppercase;
@@ -98,17 +173,124 @@ body {
 .gallery-card canvas { display: block; margin: 0 auto 8px; border-radius: 4px; }
 .gallery-card .name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
 .gallery-card .cause { font-size: 11px; color: var(--text-secondary); margin-top: 2px; line-height: 1.3; }
+#artifacts-text {
+    text-align: center;
+    padding: 6px 40px 10px;
+    flex-shrink: 0;
+}
+#artifacts-text p {
+    font-size: 15px;
+    color: var(--text-secondary);
+    font-style: italic;
+}
 
-/* Main content */
-#main {
+/* ── Scene 3: Impact ── */
+#scene-impact {
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 20px;
+}
+#impact-speller-section {
+    display: flex;
+    justify-content: center;
+    gap: 48px;
+}
+.speller-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    text-align: center;
+}
+.speller-panel .panel-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+}
+.grid-container {
+    position: relative;
+    display: inline-grid;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+/* Default grid sizing */
+.grid-container {
+    grid-template-columns: repeat(6, 36px);
+    grid-template-rows: repeat(5, 36px);
+}
+/* Large grids for impact scene */
+#scene-impact .grid-container {
+    grid-template-columns: repeat(6, 50px);
+    grid-template-rows: repeat(5, 50px);
+    gap: 5px;
+}
+#scene-impact .grid-cell {
+    font-size: 18px;
+}
+#scene-impact .output-text {
+    font-size: 24px;
+    height: 32px;
+}
+.grid-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    position: relative;
+    transition: background 0.3s, border-color 0.3s;
+}
+.grid-cell.target { border-color: var(--yellow); }
+.grid-cell.flash-green { background: rgba(46,204,113,0.3); }
+.grid-cell.flash-red { background: rgba(231,76,60,0.3); }
+.cursor-dot {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    transition: left 0.4s ease-out, top 0.4s ease-out;
+    pointer-events: none;
+    z-index: 10;
+    filter: drop-shadow(0 0 4px currentColor);
+}
+.cursor-left { background: var(--red); color: var(--red); }
+.cursor-right { background: var(--green); color: var(--green); }
+.output-text {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    height: 24px;
+    letter-spacing: 2px;
+}
+.output-text .wrong { color: var(--red); }
+.output-text .correct { color: var(--text-primary); }
+.output-text .cursor-blink {
+    display: inline-block;
+    width: 2px;
+    height: 16px;
+    background: var(--text-primary);
+    vertical-align: middle;
+    animation: blink 1s step-end infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ── Scene 4: Solution (dashboard) ── */
+#scene-solution {
+    gap: 0;
+}
+#solution-main {
     display: flex;
     flex: 1;
     min-height: 0;
     overflow: hidden;
 }
-
-/* Signal panel */
-#signal-panel {
+#solution-signal-panel {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -116,27 +298,8 @@ body {
     gap: 8px;
     min-width: 0;
 }
-.canvas-wrap {
-    position: relative;
-    background: var(--bg-card);
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    overflow: hidden;
-}
-.canvas-wrap .label {
-    position: absolute;
-    top: 6px;
-    left: 10px;
-    font-size: 11px;
-    z-index: 1;
-    pointer-events: none;
-}
-.canvas-wrap canvas { display: block; width: 100%; }
-#raw-label { color: var(--text-secondary); }
-#clean-label { color: var(--green); }
-
 /* Sidebar */
-#sidebar {
+#solution-sidebar {
     width: 240px;
     display: flex;
     flex-direction: column;
@@ -214,88 +377,8 @@ body {
 }
 .toggle-switch input:checked ~ .toggle-thumb { transform: translateX(24px); }
 
-/* Speller section */
-#speller-section {
-    display: flex;
-    justify-content: center;
-    gap: 32px;
-    padding: 10px 20px;
-    border-top: 1px solid var(--border);
-    flex-shrink: 0;
-}
-.speller-panel {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 16px;
-    text-align: center;
-    width: 320px;
-}
-.speller-panel .panel-title {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--text-secondary);
-    margin-bottom: 8px;
-}
-.grid-container {
-    position: relative;
-    display: inline-grid;
-    grid-template-columns: repeat(6, 36px);
-    grid-template-rows: repeat(5, 36px);
-    gap: 4px;
-    margin-bottom: 8px;
-}
-.grid-cell {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-primary);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--text-primary);
-    position: relative;
-    transition: background 0.3s, border-color 0.3s;
-}
-.grid-cell.target { border-color: var(--yellow); }
-.grid-cell.flash-green { background: rgba(46,204,113,0.3); }
-.grid-cell.flash-red { background: rgba(231,76,60,0.3); }
-.cursor-dot {
-    position: absolute;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    transition: left 0.15s ease-out, top 0.15s ease-out;
-    pointer-events: none;
-    z-index: 10;
-    filter: drop-shadow(0 0 4px currentColor);
-}
-.cursor-left { background: var(--red); color: var(--red); }
-.cursor-right { background: var(--green); color: var(--green); }
-.output-text {
-    font-family: var(--font-mono);
-    font-size: 16px;
-    height: 24px;
-    letter-spacing: 2px;
-}
-.output-text .wrong { color: var(--red); }
-.output-text .correct { color: var(--text-primary); }
-.output-text .cursor-blink {
-    display: inline-block;
-    width: 2px;
-    height: 16px;
-    background: var(--text-primary);
-    vertical-align: middle;
-    animation: blink 1s step-end infinite;
-}
-@keyframes blink {
-    50% { opacity: 0; }
-}
-
 /* Event log */
-#event-log {
+#solution-event-log {
     display: flex;
     align-items: center;
     gap: 16px;
@@ -319,6 +402,125 @@ body {
 .event-spike { color: var(--red); }
 .event-60hz { color: var(--orange); }
 .event-flatline { color: var(--yellow); }
+
+/* ── Scene 5: Results ── */
+#scene-results {
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    padding: 40px;
+}
+.pipeline-flow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.pipeline-node {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    color: var(--text-secondary);
+}
+.pipeline-highlight {
+    border-color: var(--green);
+    color: var(--green);
+    background: rgba(46,204,113,0.1);
+}
+.pipeline-arrow {
+    color: var(--text-secondary);
+    font-size: 16px;
+}
+.results-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    max-width: 540px;
+    width: 100%;
+}
+.result-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+}
+.result-ours { border-color: var(--green); }
+.result-baseline { border-color: var(--red); }
+.result-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+.result-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+}
+.result-row:last-child { border-bottom: none; }
+.result-value { font-weight: 500; }
+
+/* ── Scene navigation ── */
+#scene-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    height: 48px;
+    background: var(--bg-card);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.scene-dots {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.scene-dots .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background 0.3s;
+    cursor: pointer;
+}
+.scene-dots .dot.active {
+    background: var(--green);
+}
+.scene-nav-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+}
+#prev-btn, #next-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 6px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: var(--font-main);
+    transition: background 0.2s, opacity 0.2s;
+}
+#prev-btn:hover, #next-btn:hover {
+    background: rgba(236,240,241,0.05);
+}
+#prev-btn:disabled, #next-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+.nav-buttons {
+    display: flex;
+    gap: 8px;
+}
 
 /* Loading overlay */
 #loading {
@@ -352,7 +554,7 @@ body {
     <p>Loading neural data…</p>
 </div>
 
-<!-- Status bar -->
+<!-- Status bar (always visible) -->
 <div id="status-bar">
     <div class="left">
         <div class="dot"></div>
@@ -367,103 +569,226 @@ body {
     </div>
 </div>
 
-<!-- Artifact gallery -->
-<div id="gallery">
-    <h3>What causes artifacts?</h3>
-    <div class="gallery-card">
-        <canvas id="gallery-spike" width="160" height="50"></canvas>
-        <div class="name">Spike</div>
-        <div class="cause">Jaw clench, stim pulse, or cable movement</div>
+<!-- ═══════════════════════════════════════ -->
+<!-- SCENE 1: Intro                         -->
+<!-- ═══════════════════════════════════════ -->
+<div id="scene-intro" class="scene">
+    <div id="intro-signal">
+        <div class="canvas-wrap">
+            <span class="label label-raw">Raw broadband — ch 0</span>
+            <canvas id="canvas-intro"></canvas>
+        </div>
     </div>
-    <div class="gallery-card">
-        <canvas id="gallery-60hz" width="160" height="50"></canvas>
-        <div class="name">60 Hz Noise</div>
-        <div class="cause">Power line electromagnetic interference</div>
-    </div>
-    <div class="gallery-card">
-        <canvas id="gallery-flatline" width="160" height="50"></canvas>
-        <div class="name">Flatline</div>
-        <div class="cause">Electrode loses tissue contact</div>
+    <div class="scene-text">
+        <h1>This is a live neural signal from a brain-computer interface.</h1>
+        <p>32 electrodes · 30,000 samples per second</p>
     </div>
 </div>
 
-<!-- Main content -->
-<div id="main">
-    <div id="signal-panel">
-        <div class="canvas-wrap" style="flex:1;">
-            <span class="label" id="raw-label">Raw broadband — ch 0</span>
-            <canvas id="raw-canvas"></canvas>
-        </div>
-        <div class="canvas-wrap" style="flex:1;">
-            <span class="label" id="clean-label">Cleaned output — ch 0</span>
-            <canvas id="clean-canvas"></canvas>
+<!-- ═══════════════════════════════════════ -->
+<!-- SCENE 2: Artifacts                     -->
+<!-- ═══════════════════════════════════════ -->
+<div id="scene-artifacts" class="scene" style="display:none;">
+    <div id="artifacts-signal">
+        <div class="canvas-wrap">
+            <span class="label label-raw">Raw broadband — ch 0</span>
+            <canvas id="canvas-artifacts"></canvas>
         </div>
     </div>
-    <div id="sidebar">
-        <div id="stats-grid">
-            <div class="stat-card stat-green">
-                <div class="stat-label">Precision</div>
-                <div class="stat-value" id="stat-precision">—</div>
-            </div>
-            <div class="stat-card stat-green">
-                <div class="stat-label">Recall</div>
-                <div class="stat-value" id="stat-recall">—</div>
-            </div>
-            <div class="stat-card stat-orange">
-                <div class="stat-label">Artifacts</div>
-                <div class="stat-value" id="stat-artifacts">0</div>
-            </div>
-            <div class="stat-card stat-blue">
-                <div class="stat-label">Clean Signal</div>
-                <div class="stat-value" id="stat-clean">100%</div>
-            </div>
+    <div id="artifacts-gallery">
+        <h3>Artifact types</h3>
+        <div class="gallery-card">
+            <canvas id="gallery-spike" width="160" height="50"></canvas>
+            <div class="name">Spike</div>
+            <div class="cause">Jaw clench, stim pulse, or cable movement</div>
         </div>
-        <div id="toggle-wrap">
-            <span class="toggle-label">Inject artifacts</span>
-            <label class="toggle-switch">
-                <input type="checkbox" id="inject-toggle">
-                <div class="toggle-track"></div>
-                <div class="toggle-thumb"></div>
-            </label>
+        <div class="gallery-card">
+            <canvas id="gallery-60hz" width="160" height="50"></canvas>
+            <div class="name">60 Hz Noise</div>
+            <div class="cause">Power line electromagnetic interference</div>
+        </div>
+        <div class="gallery-card">
+            <canvas id="gallery-flatline" width="160" height="50"></canvas>
+            <div class="name">Flatline</div>
+            <div class="cause">Electrode loses tissue contact</div>
+        </div>
+    </div>
+    <div id="artifacts-text">
+        <p>"Muscle twitches, power lines, and loose electrodes constantly corrupt the signal."</p>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SCENE 3: Impact (speller only)         -->
+<!-- ═══════════════════════════════════════ -->
+<div id="scene-impact" class="scene" style="display:none;">
+    <div class="scene-text" style="padding-bottom:4px;">
+        <h1>A patient with ALS is trying to type a message.</h1>
+    </div>
+    <div id="impact-speller-section">
+        <div class="speller-panel" id="speller-left-panel">
+            <div class="panel-title">Without rejection</div>
+            <div class="grid-container" id="grid-left"></div>
+            <div class="output-text" id="output-left"><span class="cursor-blink"></span></div>
+        </div>
+        <div class="speller-panel" id="speller-right-panel">
+            <div class="panel-title">With rejection</div>
+            <div class="grid-container" id="grid-right"></div>
+            <div class="output-text" id="output-right"><span class="cursor-blink"></span></div>
         </div>
     </div>
 </div>
 
-<!-- Speller section -->
-<div id="speller-section">
-    <div class="speller-panel" id="speller-left-panel">
-        <div class="panel-title">Without rejection</div>
-        <div class="grid-container" id="grid-left"></div>
-        <div class="output-text" id="output-left"><span class="cursor-blink"></span></div>
+<!-- ═══════════════════════════════════════ -->
+<!-- SCENE 4: Solution (full dashboard)     -->
+<!-- ═══════════════════════════════════════ -->
+<div id="scene-solution" class="scene" style="display:none;">
+    <div id="solution-main">
+        <div id="solution-signal-panel">
+            <div class="canvas-wrap" style="flex:1;">
+                <span class="label label-raw">Raw broadband — ch 0</span>
+                <canvas id="canvas-solution-raw"></canvas>
+            </div>
+            <div class="canvas-wrap" style="flex:1;">
+                <span class="label label-clean">Cleaned output — ch 0</span>
+                <canvas id="canvas-solution-clean"></canvas>
+            </div>
+        </div>
+        <div id="solution-sidebar">
+            <div id="stats-grid">
+                <div class="stat-card stat-green">
+                    <div class="stat-label">Precision</div>
+                    <div class="stat-value" id="stat-precision">—</div>
+                </div>
+                <div class="stat-card stat-green">
+                    <div class="stat-label">Recall</div>
+                    <div class="stat-value" id="stat-recall">—</div>
+                </div>
+                <div class="stat-card stat-orange">
+                    <div class="stat-label">Artifacts</div>
+                    <div class="stat-value" id="stat-artifacts">0</div>
+                </div>
+                <div class="stat-card stat-blue">
+                    <div class="stat-label">Clean Signal</div>
+                    <div class="stat-value" id="stat-clean">100%</div>
+                </div>
+            </div>
+            <div id="toggle-wrap">
+                <span class="toggle-label">Inject artifacts</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="inject-toggle">
+                    <div class="toggle-track"></div>
+                    <div class="toggle-thumb"></div>
+                </label>
+            </div>
+        </div>
     </div>
-    <div class="speller-panel" id="speller-right-panel">
-        <div class="panel-title">With rejection</div>
-        <div class="grid-container" id="grid-right"></div>
-        <div class="output-text" id="output-right"><span class="cursor-blink"></span></div>
+    <div id="solution-event-log"></div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SCENE 5: Results                       -->
+<!-- ═══════════════════════════════════════ -->
+<div id="scene-results" class="scene" style="display:none;">
+    <!-- Pipeline diagram -->
+    <div class="pipeline-flow">
+        <span class="pipeline-node">Electrodes</span>
+        <span class="pipeline-arrow">→</span>
+        <span class="pipeline-node">Broadband source</span>
+        <span class="pipeline-arrow">→</span>
+        <span class="pipeline-node pipeline-highlight">Artifact reject</span>
+        <span class="pipeline-arrow">→</span>
+        <span class="pipeline-node">Decoder</span>
+        <span class="pipeline-arrow">→</span>
+        <span class="pipeline-node">Patient output</span>
+    </div>
+
+    <!-- Results comparison -->
+    <div class="results-grid">
+        <div class="result-card result-ours">
+            <div class="result-label">Our system (MAD + FFT)</div>
+            <div class="result-row">
+                <span>Artifacts caught</span>
+                <span class="result-value" style="color:var(--green);">83%</span>
+            </div>
+            <div class="result-row">
+                <span>Clean signal preserved</span>
+                <span class="result-value" style="color:var(--green);">85%</span>
+            </div>
+            <div class="result-row">
+                <span>Configuration needed</span>
+                <span class="result-value" style="color:var(--green);">None</span>
+            </div>
+        </div>
+        <div class="result-card result-baseline">
+            <div class="result-label">Fixed threshold (standard)</div>
+            <div class="result-row">
+                <span>Artifacts caught</span>
+                <span class="result-value" style="color:var(--red);">0%</span>
+            </div>
+            <div class="result-row">
+                <span>Clean signal preserved</span>
+                <span class="result-value" style="color:var(--red);">0%</span>
+            </div>
+            <div class="result-row">
+                <span>Configuration needed</span>
+                <span class="result-value" style="color:var(--red);">Manual</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Value prop -->
+    <p style="font-size:18px; color:var(--text-secondary); text-align:center; max-width:600px; line-height:1.5;">
+        Drop-in artifact rejection for the Synapse neural interface platform.<br>
+        Zero configuration. Real-time. Open source.
+    </p>
+
+    <!-- Team -->
+    <div style="font-size:14px; color:var(--text-secondary); text-align:center;">
+        <p style="margin-bottom:4px;"><strong style="color:var(--text-primary);">James Mu</strong> (Duke) · <strong style="color:var(--text-primary);">Derek Mu</strong> (CMU)</p>
+        <p style="font-family:var(--font-mono); color:var(--blue);">github.com/jamesmu03/artifact-reject</p>
     </div>
 </div>
 
-<!-- Event log -->
-<div id="event-log"></div>
+<!-- ═══════════════════════════════════════ -->
+<!-- Scene Navigation                       -->
+<!-- ═══════════════════════════════════════ -->
+<div id="scene-nav">
+    <div class="scene-dots">
+        <span class="dot active" onclick="showScene(0)"></span>
+        <span class="dot" onclick="showScene(1)"></span>
+        <span class="dot" onclick="showScene(2)"></span>
+        <span class="dot" onclick="showScene(3)"></span>
+        <span class="dot" onclick="showScene(4)"></span>
+    </div>
+    <span class="scene-nav-label" id="scene-label">1 / 5</span>
+    <div class="nav-buttons">
+        <button id="prev-btn" onclick="prevScene()" disabled>← Back</button>
+        <button id="next-btn" onclick="nextScene()">Next →</button>
+    </div>
+</div>
 
 <script>
-// ── Data ──
+// ══════════════════════════════════════════
+// DATA & STATE
+// ══════════════════════════════════════════
+
 let cleanData = [];
 let artifactData = [];
 let injectEnabled = false;
 let currentIndex = 0;
 
-// ── Stats ──
+// Stats
 let stats = { total: 0, oursTP: 0, oursFP: 0, oursFN: 0, artifactsDetected: 0 };
 
-// ── Signal buffers ──
+// Signal buffers
 const DISPLAY_POINTS = 2000;
 const MAX_AMPLITUDE = 600;
 let signalBuffer = [];
 let cleanBuffer = [];
-let artifactFlags = []; // parallel flag buffer: true if point is from artifact window
+let artifactFlags = [];
 
-// ── Speller ──
+// Speller
 const GRID_CHARS = [
     'A','B','C','D','E','F',
     'G','H','I','J','K','L',
@@ -493,95 +818,203 @@ let spellerState = {
     paused: false,
 };
 
-// ── Event log ──
+// Event log
 let eventLog = [];
+let lastEventTime = 0;
 
-// ── Timer ──
+// Timer
 let startTime = null;
 
-// ── Canvas elements ──
-let rawCanvas, rawCtx, cleanCanvas, cleanCtx;
+// Playback
+let tickTimer = null;
+let tickIntervalMs = 500;
+let elapsedTimer = null;
 
 // ══════════════════════════════════════════
-// INIT
+// SCENE MANAGER
 // ══════════════════════════════════════════
 
-async function init() {
-    try {
-        const [cleanResp, artifResp] = await Promise.all([
-            fetch('data_clean.json'),
-            fetch('data_artifacts.json')
-        ]);
-        cleanData = await cleanResp.json();
-        artifactData = await artifResp.json();
-    } catch (e) {
-        document.getElementById('loading').innerHTML =
-            '<p style="color:var(--red)">Failed to load data. Run: <code>python3 -m http.server 8000</code> then open <code>localhost:8000</code></p>';
-        return;
-    }
+const SCENES = ['intro', 'artifacts', 'impact', 'solution', 'results'];
+let currentScene = 0;
 
-    // Setup canvases
-    rawCanvas = document.getElementById('raw-canvas');
-    cleanCanvas = document.getElementById('clean-canvas');
-    resizeCanvases();
-    window.addEventListener('resize', resizeCanvases);
-    rawCtx = rawCanvas.getContext('2d');
-    cleanCtx = cleanCanvas.getContext('2d');
-
-    // Build grids
-    buildGrid('grid-left', 'left');
-    buildGrid('grid-right', 'right');
-
-    // Draw gallery
-    drawGallery();
-
-    // Toggle handler
-    const toggleEl = document.getElementById('inject-toggle');
-    function onToggle() {
-        injectEnabled = toggleEl.checked;
-        currentIndex = 0;
-        stats = { total: 0, oursTP: 0, oursFP: 0, oursFN: 0, artifactsDetected: 0 };
-        spellerState.wordIndex = 0;
-        spellerState.charIndex = 0;
-        spellerState.ticksThisChar = 0;
-        spellerState.leftOutput = "";
-        spellerState.rightOutput = "";
-        spellerState.leftArtifactOffset = null;
-        spellerState.paused = false;
-        eventLog = [];
-        renderEventLog();
-        renderStats();
-        renderOutputText();
-    }
-    toggleEl.addEventListener('change', onToggle);
-
-    // Keyboard shortcut: press 'i' to toggle injection
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'i' || e.key === 'I') {
-            toggleEl.checked = !toggleEl.checked;
-            onToggle();
-        }
+function showScene(index) {
+    currentScene = index;
+    SCENES.forEach((id, i) => {
+        document.getElementById('scene-' + id).style.display = i === index ? '' : 'none';
     });
 
-    // Hide loading
-    document.getElementById('loading').style.display = 'none';
+    // Update dots
+    const dots = document.querySelectorAll('.scene-dots .dot');
+    dots.forEach((d, i) => d.classList.toggle('active', i === index));
+
+    // Update label
+    document.getElementById('scene-label').textContent = `${index + 1} / ${SCENES.length}`;
+
+    // Update nav buttons
+    document.getElementById('prev-btn').disabled = index === 0;
+    document.getElementById('next-btn').disabled = index === SCENES.length - 1;
+    document.getElementById('next-btn').textContent = index === SCENES.length - 1 ? 'Done' : 'Next →';
+
+    // Scene-specific init
+    onSceneEnter(SCENES[index]);
+}
+
+function nextScene() {
+    if (currentScene < SCENES.length - 1) showScene(currentScene + 1);
+}
+
+function prevScene() {
+    if (currentScene > 0) showScene(currentScene - 1);
+}
+
+// Keyboard navigation
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') {
+        e.preventDefault();
+        nextScene();
+    }
+    if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        prevScene();
+    }
+    // 'i' key for inject toggle (scene 4 only)
+    if ((e.key === 'i' || e.key === 'I') && SCENES[currentScene] === 'solution') {
+        const toggleEl = document.getElementById('inject-toggle');
+        toggleEl.checked = !toggleEl.checked;
+        onToggle();
+    }
+});
+
+// ══════════════════════════════════════════
+// SCENE ENTER LOGIC
+// ══════════════════════════════════════════
+
+function onSceneEnter(sceneName) {
+    stopPlayback();
+
+    switch(sceneName) {
+        case 'intro':
+            injectEnabled = false;
+            tickIntervalMs = 500;
+            resetStats();
+            resetSignalBuffers();
+            currentIndex = 0;
+            resizeCanvasById('canvas-intro');
+            startPlayback();
+            break;
+
+        case 'artifacts':
+            injectEnabled = true;
+            tickIntervalMs = 500;
+            resetSignalBuffers();
+            currentIndex = 0;
+            resizeCanvasById('canvas-artifacts');
+            drawGallery();
+            startPlayback();
+            break;
+
+        case 'impact':
+            injectEnabled = true;
+            tickIntervalMs = 500;
+            spellerState.ticksPerChar = 8;
+            resetSpeller();
+            currentIndex = 0;
+            startPlayback();
+            break;
+
+        case 'solution':
+            injectEnabled = false;
+            document.getElementById('inject-toggle').checked = false;
+            tickIntervalMs = 500;
+            resetStats();
+            resetSignalBuffers();
+            currentIndex = 0;
+            resizeCanvasById('canvas-solution-raw');
+            resizeCanvasById('canvas-solution-clean');
+            startPlayback();
+            break;
+
+        case 'results':
+            // Static scene
+            break;
+    }
+}
+
+function resetSignalBuffers() {
+    signalBuffer = [];
+    cleanBuffer = [];
+    artifactFlags = [];
+}
+
+function resetStats() {
+    stats = { total: 0, oursTP: 0, oursFP: 0, oursFN: 0, artifactsDetected: 0 };
+    eventLog = [];
+    lastEventTime = 0;
+    renderStats();
+    renderEventLog();
+}
+
+function resetSpeller() {
+    spellerState.wordIndex = 0;
+    spellerState.charIndex = 0;
+    spellerState.ticksThisChar = 0;
+    spellerState.leftOutput = "";
+    spellerState.rightOutput = "";
+    spellerState.leftCursorPos = {r: 0, c: 0};
+    spellerState.rightCursorPos = {r: 0, c: 0};
+    spellerState.leftArtifactOffset = null;
+    spellerState.paused = false;
+    renderOutputText();
+}
+
+function startPlayback() {
+    stopPlayback();
     startTime = Date.now();
-
-    // Start
-    setInterval(tick, 100);
-    setInterval(updateElapsed, 1000);
+    tickTimer = setInterval(tick, tickIntervalMs);
 }
 
-function resizeCanvases() {
-    const wraps = document.querySelectorAll('.canvas-wrap');
-    wraps.forEach(wrap => {
-        const canvas = wrap.querySelector('canvas');
-        if (!canvas) return;
-        const rect = wrap.getBoundingClientRect();
-        canvas.width = rect.width;
-        canvas.height = rect.height;
-    });
+function stopPlayback() {
+    if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
 }
+
+// ══════════════════════════════════════════
+// TOGGLE
+// ══════════════════════════════════════════
+
+function onToggle() {
+    const toggleEl = document.getElementById('inject-toggle');
+    injectEnabled = toggleEl.checked;
+    currentIndex = 0;
+    resetStats();
+    resetSignalBuffers();
+    resetSpeller();
+}
+
+// ══════════════════════════════════════════
+// CANVAS MANAGEMENT
+// ══════════════════════════════════════════
+
+function resizeCanvasById(id) {
+    const canvas = document.getElementById(id);
+    if (!canvas) return;
+    const wrap = canvas.closest('.canvas-wrap');
+    if (!wrap) return;
+    const rect = wrap.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+}
+
+function resizeAllVisibleCanvases() {
+    const scene = SCENES[currentScene];
+    if (scene === 'intro') resizeCanvasById('canvas-intro');
+    if (scene === 'artifacts') resizeCanvasById('canvas-artifacts');
+    if (scene === 'solution') {
+        resizeCanvasById('canvas-solution-raw');
+        resizeCanvasById('canvas-solution-clean');
+    }
+}
+
+window.addEventListener('resize', resizeAllVisibleCanvases);
 
 // ══════════════════════════════════════════
 // TICK
@@ -589,6 +1022,7 @@ function resizeCanvases() {
 
 function tick() {
     const data = injectEnabled ? artifactData : cleanData;
+    if (!data.length) return;
     const win = data[currentIndex % data.length];
 
     // Stats
@@ -606,7 +1040,7 @@ function tick() {
     signalBuffer.push(...pts);
     if (signalBuffer.length > DISPLAY_POINTS) signalBuffer = signalBuffer.slice(-DISPLAY_POINTS);
 
-    // Artifact flag buffer (per sample point)
+    // Artifact flag buffer
     const flags = new Array(pts.length).fill(groundTruth);
     artifactFlags.push(...flags);
     if (artifactFlags.length > DISPLAY_POINTS) artifactFlags = artifactFlags.slice(-DISPLAY_POINTS);
@@ -619,24 +1053,40 @@ function tick() {
     }
     if (cleanBuffer.length > DISPLAY_POINTS) cleanBuffer = cleanBuffer.slice(-DISPLAY_POINTS);
 
-    // Speller
-    if (!spellerState.paused) {
-        updateCursorSpeller(groundTruth, win.ours_hit);
+    // Scene-specific rendering
+    const scene = SCENES[currentScene];
+
+    if (scene === 'intro') {
+        renderRawCanvas('canvas-intro', false);
     }
 
-    // Event log
-    if (win.ours_hit) {
-        const reasons = [];
-        if (win.mad_hit) reasons.push('MAD ch=' + win.mad_channels.join(','));
-        if (win.fft_hit) reasons.push('60Hz (' + win.fft_ratio + 'x)');
-        addEvent(reasons.join(' + '), win.injected_type || 'false_positive');
+    if (scene === 'artifacts') {
+        renderRawCanvas('canvas-artifacts', true);
     }
 
-    // Render
-    renderSignalCanvas();
-    renderCleanCanvas();
-    renderStats();
-    renderOutputText();
+    if (scene === 'impact') {
+        if (!spellerState.paused) {
+            updateCursorSpeller(groundTruth, win.ours_hit);
+        }
+    }
+
+    if (scene === 'solution') {
+        renderRawCanvas('canvas-solution-raw', true);
+        renderCleanCanvas('canvas-solution-clean');
+        renderStats();
+
+        // Event log (throttled)
+        if (win.ours_hit) {
+            const now = Date.now();
+            if (now - lastEventTime >= 1000) {
+                lastEventTime = now;
+                const reasons = [];
+                if (win.mad_hit) reasons.push('MAD ch=' + win.mad_channels.join(','));
+                if (win.fft_hit) reasons.push('60Hz (' + win.fft_ratio + 'x)');
+                addEvent(reasons.join(' + '), win.injected_type || 'false_positive');
+            }
+        }
+    }
 
     currentIndex++;
 }
@@ -645,10 +1095,12 @@ function tick() {
 // SIGNAL RENDERING
 // ══════════════════════════════════════════
 
-function renderSignalCanvas() {
-    const ctx = rawCtx;
-    const w = rawCanvas.width;
-    const h = rawCanvas.height;
+function renderRawCanvas(canvasId, showArtifacts) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
     ctx.fillStyle = '#161b22';
     ctx.fillRect(0, 0, w, h);
 
@@ -659,20 +1111,22 @@ function renderSignalCanvas() {
     const n = signalBuffer.length;
 
     // Draw artifact shading
-    let inArtifact = false;
-    let startX = 0;
-    for (let i = 0; i < n; i++) {
-        const x = (i / n) * w;
-        if (artifactFlags[i] && !inArtifact) { inArtifact = true; startX = x; }
-        if (!artifactFlags[i] && inArtifact) {
-            ctx.fillStyle = 'rgba(231,76,60,0.15)';
-            ctx.fillRect(startX, 0, x - startX, h);
-            inArtifact = false;
+    if (showArtifacts) {
+        let inArtifact = false;
+        let startX = 0;
+        for (let i = 0; i < n; i++) {
+            const x = (i / n) * w;
+            if (artifactFlags[i] && !inArtifact) { inArtifact = true; startX = x; }
+            if (!artifactFlags[i] && inArtifact) {
+                ctx.fillStyle = 'rgba(231,76,60,0.15)';
+                ctx.fillRect(startX, 0, x - startX, h);
+                inArtifact = false;
+            }
         }
-    }
-    if (inArtifact) {
-        ctx.fillStyle = 'rgba(231,76,60,0.15)';
-        ctx.fillRect(startX, 0, w - startX, h);
+        if (inArtifact) {
+            ctx.fillStyle = 'rgba(231,76,60,0.15)';
+            ctx.fillRect(startX, 0, w - startX, h);
+        }
     }
 
     // Draw trace
@@ -687,10 +1141,12 @@ function renderSignalCanvas() {
     ctx.stroke();
 }
 
-function renderCleanCanvas() {
-    const ctx = cleanCtx;
-    const w = cleanCanvas.width;
-    const h = cleanCanvas.height;
+function renderCleanCanvas(canvasId) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
     ctx.fillStyle = '#161b22';
     ctx.fillRect(0, 0, w, h);
 
@@ -787,9 +1243,12 @@ function updateCursorSpeller(groundTruth, oursHit) {
         spellerState.leftCursorPos.c += spellerState.leftArtifactOffset.c;
     }
 
-    // Update cursor dot positions
-    updateCursorDot('left', spellerState.leftCursorPos);
-    updateCursorDot('right', spellerState.rightCursorPos);
+    // Update cursor dot positions — use scene-appropriate cell sizing
+    const inImpact = SCENES[currentScene] === 'impact';
+    const cellSize = inImpact ? 50 : 36;
+    const gap = inImpact ? 5 : 4;
+    updateCursorDot('left', spellerState.leftCursorPos, cellSize, gap);
+    updateCursorDot('right', spellerState.rightCursorPos, cellSize, gap);
 
     // Highlight target cell
     highlightTarget(targetPos);
@@ -843,19 +1302,15 @@ function buildGrid(containerId, side) {
         cell.dataset.index = i;
         container.appendChild(cell);
     }
-    // Add cursor dot
     const dot = document.createElement('div');
     dot.className = 'cursor-dot cursor-' + side;
     dot.id = 'cursor-' + side;
     container.appendChild(dot);
 }
 
-function updateCursorDot(side, pos) {
+function updateCursorDot(side, pos, cellSize, gap) {
     const dot = document.getElementById('cursor-' + side);
     if (!dot) return;
-    // Grid cell is 36px + 4px gap = 40px stride
-    const cellSize = 36;
-    const gap = 4;
     const stride = cellSize + gap;
     const clampR = Math.max(0, Math.min(4, pos.r));
     const clampC = Math.max(0, Math.min(5, pos.c));
@@ -864,9 +1319,7 @@ function updateCursorDot(side, pos) {
 }
 
 function highlightTarget(pos) {
-    // Clear all targets
     document.querySelectorAll('.grid-cell.target').forEach(c => c.classList.remove('target'));
-    // Highlight in both grids
     const idx = pos.r * 6 + pos.c;
     ['grid-left', 'grid-right'].forEach(gid => {
         const cells = document.getElementById(gid).querySelectorAll('.grid-cell');
@@ -884,7 +1337,6 @@ function flashCell(gridId, idx, cls) {
 function renderOutputText() {
     const targetWord = TARGET_WORDS[spellerState.wordIndex];
 
-    // Right side — always correct
     let rightHtml = '';
     for (let i = 0; i < spellerState.rightOutput.length; i++) {
         rightHtml += `<span class="correct">${spellerState.rightOutput[i]}</span>`;
@@ -892,7 +1344,6 @@ function renderOutputText() {
     rightHtml += '<span class="cursor-blink"></span>';
     document.getElementById('output-right').innerHTML = rightHtml;
 
-    // Left side — highlight errors
     let leftHtml = '';
     const targetDisplay = targetWord.split('').map(c => c === ' ' ? '␣' : c);
     for (let i = 0; i < spellerState.leftOutput.length; i++) {
@@ -912,20 +1363,21 @@ function addEvent(reason, type) {
     const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
     const ss = String(elapsed % 60).padStart(2, '0');
     eventLog.unshift({ time: `${mm}:${ss}`, reason, type });
-    if (eventLog.length > 5) eventLog = eventLog.slice(0, 5);
+    if (eventLog.length > 3) eventLog = eventLog.slice(0, 3);
     renderEventLog();
 }
 
 function renderEventLog() {
-    const el = document.getElementById('event-log');
+    const el = document.getElementById('solution-event-log');
+    if (!el) return;
     el.innerHTML = eventLog.map(e => {
         let cls = 'event-entry';
         if (e.type === 'spike') cls += ' event-spike';
         else if (e.type === '60hz') cls += ' event-60hz';
         else if (e.type === 'flatline') cls += ' event-flatline';
-        else cls += ' event-spike'; // false positive
+        else cls += ' event-spike';
         return `<span class="${cls}">${e.time} ${e.reason} — rejected</span>`;
-    }).join('');
+    }).join('  ');
 }
 
 // ══════════════════════════════════════════
@@ -943,19 +1395,16 @@ function drawGallerySpike() {
     const ctx = c.getContext('2d');
     ctx.fillStyle = '#161b22';
     ctx.fillRect(0, 0, 160, 50);
-
     ctx.beginPath();
     ctx.strokeStyle = '#ecf0f1';
     ctx.lineWidth = 1;
     const mid = 25;
     for (let x = 0; x < 160; x++) {
         let y = mid + Math.sin(x * 0.15) * 6 + Math.sin(x * 0.4) * 3;
-        // spike at center
         if (x >= 78 && x <= 82) y = mid - 20 + (Math.abs(x - 80)) * 10;
         if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     }
     ctx.stroke();
-    // Red highlight on spike
     ctx.fillStyle = 'rgba(231,76,60,0.2)';
     ctx.fillRect(70, 0, 20, 50);
 }
@@ -965,7 +1414,6 @@ function drawGallery60Hz() {
     const ctx = c.getContext('2d');
     ctx.fillStyle = '#161b22';
     ctx.fillRect(0, 0, 160, 50);
-
     ctx.beginPath();
     ctx.strokeStyle = '#ecf0f1';
     ctx.lineWidth = 1;
@@ -986,7 +1434,6 @@ function drawGalleryFlatline() {
     const ctx = c.getContext('2d');
     ctx.fillStyle = '#161b22';
     ctx.fillRect(0, 0, 160, 50);
-
     ctx.beginPath();
     ctx.strokeStyle = '#ecf0f1';
     ctx.lineWidth = 1;
@@ -994,7 +1441,7 @@ function drawGalleryFlatline() {
     for (let x = 0; x < 160; x++) {
         let y;
         if (x > 55 && x < 105) {
-            y = mid; // flatline
+            y = mid;
         } else {
             y = mid + Math.sin(x * 0.15) * 6 + Math.sin(x * 0.4) * 3;
         }
@@ -1018,8 +1465,39 @@ function updateElapsed() {
 }
 
 // ══════════════════════════════════════════
-// START
+// INIT
 // ══════════════════════════════════════════
+
+async function init() {
+    try {
+        const [cleanResp, artifResp] = await Promise.all([
+            fetch('data_clean.json'),
+            fetch('data_artifacts.json')
+        ]);
+        cleanData = await cleanResp.json();
+        artifactData = await artifResp.json();
+    } catch (e) {
+        document.getElementById('loading').innerHTML =
+            '<p style="color:var(--red)">Failed to load data. Run: <code>python3 -m http.server 8000</code> then open <code>localhost:8000</code></p>';
+        return;
+    }
+
+    // Build grids
+    buildGrid('grid-left', 'left');
+    buildGrid('grid-right', 'right');
+
+    // Toggle handler
+    document.getElementById('inject-toggle').addEventListener('change', onToggle);
+
+    // Hide loading
+    document.getElementById('loading').style.display = 'none';
+
+    // Elapsed timer
+    setInterval(updateElapsed, 1000);
+
+    // Show first scene
+    showScene(0);
+}
 
 init();
 </script>
