@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Neural Signal Monitor — Artifact Rejection Demo</title>
-<meta name="description" content="Real-time neural artifact rejection pipeline demo — MAD + FFT vs fixed threshold">
+<meta name="description" content="Real-time artifact rejection for BCI neural signals. Compare MAD+FFT detector vs z-score baseline.">
 <style>
 :root {
     --bg-primary: #0d1117;
@@ -20,7 +20,9 @@
     --font-main: system-ui, -apple-system, 'Segoe UI', sans-serif;
     --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
 }
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
+
 body {
     background: var(--bg-primary);
     color: var(--text-primary);
@@ -29,78 +31,137 @@ body {
     height: 100vh;
     display: flex;
     flex-direction: column;
+    position: relative;
 }
 
-/* Status bar */
+/* ===== Status bar ===== */
 #status-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    height: 44px;
+    padding: 0 16px;
     background: var(--bg-card);
     border-bottom: 1px solid var(--border);
-    height: 44px;
-    padding: 0 20px;
     flex-shrink: 0;
+    z-index: 5;
 }
+
 #status-bar .left {
     display: flex;
     align-items: center;
     gap: 10px;
 }
-#status-bar .dot {
+
+.pulse-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
     background: var(--green);
-    animation: pulse 2s infinite;
+    animation: pulse 2s ease-in-out infinite;
 }
+
 @keyframes pulse {
-    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(46,204,113,0.4); }
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(46,204,113,0.5); }
     50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(46,204,113,0); }
 }
-#status-bar .title { font-size: 14px; font-weight: 500; letter-spacing: 0.5px; }
+
+.title {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-primary);
+}
+
 #status-bar .right {
     display: flex;
-    gap: 16px;
+    align-items: center;
+    gap: 14px;
+}
+
+.meta {
     font-size: 12px;
     color: var(--text-secondary);
     font-family: var(--font-mono);
 }
-#status-bar .right span { display: flex; align-items: center; gap: 4px; }
 
-/* ── Scenes ── */
-.scene {
+.divider {
+    color: var(--border);
+    font-size: 12px;
+}
+
+/* Inline toggle switches */
+.toggle-inline {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-secondary);
+    user-select: none;
+}
+
+.toggle-inline input { display: none; }
+
+.toggle-track-sm {
+    width: 32px;
+    height: 16px;
+    border-radius: 8px;
+    background: var(--border);
+    position: relative;
+    transition: background 0.2s;
+}
+
+.toggle-track-sm::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.2s;
+}
+
+.toggle-inline input:checked + .toggle-track-sm {
+    background: var(--green);
+}
+
+.toggle-inline input:checked + .toggle-track-sm::after {
+    transform: translateX(16px);
+}
+
+/* ===== Traces ===== */
+#traces {
     flex: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
-}
-.scene-text {
-    text-align: center;
-    padding: 24px 40px;
-}
-.scene-text h1 {
-    font-size: 28px;
-    font-weight: 500;
-    color: var(--text-primary);
-    margin-bottom: 8px;
-    line-height: 1.4;
-}
-.scene-text p {
-    font-size: 16px;
-    color: var(--text-secondary);
-    font-family: var(--font-mono);
+    gap: 8px;
+    padding: 8px 12px;
+    padding-bottom: 48px; /* space for collapsed mouse bar */
+    min-height: 0;
 }
 
-/* ── Canvas shared ── */
-.canvas-wrap {
+.trace-wrap {
+    flex: 1;
     position: relative;
     background: var(--bg-card);
-    border-radius: 8px;
     border: 1px solid var(--border);
+    border-radius: 8px;
     overflow: hidden;
+    min-height: 0;
+    transition: opacity 0.3s;
 }
-.canvas-wrap .label {
+
+.trace-wrap canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.trace-label {
     position: absolute;
     top: 6px;
     left: 10px;
@@ -108,1398 +169,644 @@ body {
     z-index: 1;
     pointer-events: none;
 }
-.canvas-wrap canvas { display: block; width: 100%; height: 100%; }
-.label-raw { color: var(--text-secondary); }
-.label-clean { color: var(--green); }
 
-/* ── Scene 1: Intro ── */
-#scene-intro {
-    align-items: center;
-    justify-content: center;
-    gap: 0;
-}
-#intro-signal {
-    flex: 1;
-    padding: 24px 40px 12px;
-    width: 100%;
-    min-height: 0;
-}
-#intro-signal .canvas-wrap {
-    height: 100%;
-}
-
-/* ── Scene 2: Artifacts ── */
-#scene-artifacts {
-    gap: 0;
-}
-#artifacts-signal {
-    flex: 1;
-    padding: 12px 40px 8px;
-    min-height: 0;
-}
-#artifacts-signal .canvas-wrap {
-    height: 100%;
-}
-#artifacts-gallery {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 24px;
-    padding: 10px 20px 6px;
-    flex-shrink: 0;
-    opacity: 0;
-    animation: fadeInUp 0.5s 0.3s forwards;
-}
-@keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-#artifacts-gallery h3 {
-    font-size: 12px;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-right: 8px;
-    white-space: nowrap;
-}
-.gallery-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px 14px;
-    text-align: center;
-    width: 180px;
-}
-.gallery-card canvas { display: block; margin: 0 auto 8px; border-radius: 4px; }
-.gallery-card .name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
-.gallery-card .cause { font-size: 11px; color: var(--text-secondary); margin-top: 2px; line-height: 1.3; }
-#artifacts-text {
-    text-align: center;
-    padding: 6px 40px 10px;
-    flex-shrink: 0;
-}
-#artifacts-text p {
-    font-size: 15px;
-    color: var(--text-secondary);
-    font-style: italic;
-}
-
-/* ── Scene 3: Impact ── */
-#scene-impact {
-    align-items: center;
-    justify-content: center;
-    gap: 16px;
-    padding: 20px;
-}
-#impact-speller-section {
-    display: flex;
-    justify-content: center;
-    gap: 48px;
-}
-.speller-panel {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px 20px;
-    text-align: center;
-}
-.speller-panel .panel-title {
+.trace-stats {
+    position: absolute;
+    top: 6px;
+    right: 10px;
     font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
+    font-family: var(--font-mono);
+    z-index: 1;
+    pointer-events: none;
     color: var(--text-secondary);
-    margin-bottom: 10px;
 }
-.grid-container {
-    position: relative;
-    display: inline-grid;
-    gap: 4px;
-    margin-bottom: 10px;
-}
-/* Default grid sizing */
-.grid-container {
-    grid-template-columns: repeat(6, 36px);
-    grid-template-rows: repeat(5, 36px);
-}
-/* Large grids for impact scene */
-#scene-impact .grid-container {
-    grid-template-columns: repeat(6, 50px);
-    grid-template-rows: repeat(5, 50px);
-    gap: 5px;
-}
-#scene-impact .grid-cell {
-    font-size: 18px;
-}
-#scene-impact .output-text {
-    font-size: 24px;
-    height: 32px;
-}
-.grid-cell {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+
+/* ===== Mouse panel ===== */
+#mouse-panel {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
     background: var(--bg-primary);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--text-primary);
-    position: relative;
-    transition: background 0.3s, border-color 0.3s;
-}
-.grid-cell.target { border-color: var(--yellow); }
-.grid-cell.flash-green { background: rgba(46,204,113,0.3); }
-.grid-cell.flash-red { background: rgba(231,76,60,0.3); }
-.cursor-dot {
-    position: absolute;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    transition: left 0.4s ease-out, top 0.4s ease-out;
-    pointer-events: none;
-    z-index: 10;
-    filter: drop-shadow(0 0 4px currentColor);
-}
-.cursor-left { background: var(--red); color: var(--red); }
-.cursor-right { background: var(--green); color: var(--green); }
-.output-text {
-    font-family: var(--font-mono);
-    font-size: 16px;
-    height: 24px;
-    letter-spacing: 2px;
-}
-.output-text .wrong { color: var(--red); }
-.output-text .correct { color: var(--text-primary); }
-.output-text .cursor-blink {
-    display: inline-block;
-    width: 2px;
-    height: 16px;
-    background: var(--text-primary);
-    vertical-align: middle;
-    animation: blink 1s step-end infinite;
-}
-@keyframes blink { 50% { opacity: 0; } }
-
-/* ── Scene 4: Solution (dashboard) ── */
-#scene-solution {
-    gap: 0;
-}
-#solution-main {
-    display: flex;
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-}
-#solution-signal-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    padding: 12px 16px;
-    gap: 8px;
-    min-width: 0;
-}
-/* Sidebar */
-#solution-sidebar {
-    width: 240px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px 16px 12px 0;
-    flex-shrink: 0;
-    justify-content: center;
-}
-#stats-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-}
-.stat-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 8px 10px;
-}
-.stat-card .stat-label {
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-secondary);
-    margin-bottom: 2px;
-}
-.stat-card .stat-value {
-    font-size: 18px;
-    font-weight: 500;
-}
-.stat-green .stat-value { color: var(--green); }
-.stat-orange .stat-value { color: var(--orange); }
-.stat-blue .stat-value { color: var(--blue); }
-
-/* Toggle */
-#toggle-wrap {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 10px 12px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-}
-#toggle-wrap .toggle-label {
-    font-size: 12px;
-    color: var(--text-secondary);
-}
-.toggle-switch {
-    position: relative;
-    width: 48px;
-    height: 24px;
-    cursor: pointer;
-}
-.toggle-switch input { display: none; }
-.toggle-track {
-    position: absolute;
-    inset: 0;
-    background: var(--border);
-    border-radius: 12px;
-    transition: background 0.3s;
-}
-.toggle-switch input:checked + .toggle-track { background: var(--green); }
-.toggle-thumb {
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 20px;
-    height: 20px;
-    background: #fff;
-    border-radius: 50%;
-    transition: transform 0.3s;
-    pointer-events: none;
-}
-.toggle-switch input:checked ~ .toggle-thumb { transform: translateX(24px); }
-
-/* Event log */
-#solution-event-log {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 0 20px;
-    height: 36px;
-    background: var(--bg-card);
     border-top: 1px solid var(--border);
+    transition: height 0.4s ease;
     overflow: hidden;
-    flex-shrink: 0;
-    font-size: 12px;
-    font-family: var(--font-mono);
+    z-index: 10;
 }
-.event-entry {
-    white-space: nowrap;
-    animation: slideIn 0.3s ease-out;
-}
-@keyframes slideIn {
-    from { transform: translateX(-30px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-}
-.event-spike { color: var(--red); }
-.event-60hz { color: var(--orange); }
-.event-flatline { color: var(--yellow); }
 
-/* ── Scene 5: Results ── */
-#scene-results {
-    align-items: center;
-    justify-content: center;
-    gap: 32px;
-    padding: 40px;
+#mouse-panel.collapsed {
+    height: 40px;
 }
-.pipeline-flow {
+
+#mouse-panel.expanded {
+    height: calc(100vh - 44px - 33.33vh);
+}
+
+#mouse-toggle-bar {
+    height: 40px;
     display: flex;
     align-items: center;
-    gap: 12px;
-    font-size: 13px;
-    flex-wrap: wrap;
     justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 13px;
+    transition: background 0.2s;
+    user-select: none;
 }
-.pipeline-node {
+
+#mouse-toggle-bar:hover {
     background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 8px 14px;
-    color: var(--text-secondary);
 }
-.pipeline-highlight {
-    border-color: var(--green);
-    color: var(--green);
-    background: rgba(46,204,113,0.1);
+
+.key-hint {
+    font-size: 11px;
+    color: var(--border);
+    font-family: var(--font-mono);
 }
-.pipeline-arrow {
-    color: var(--text-secondary);
-    font-size: 16px;
+
+#mouse-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: calc(100% - 40px);
+    padding: 16px 24px;
 }
-.results-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+
+.mouse-panels-row {
+    display: flex;
     gap: 24px;
-    max-width: 540px;
+    height: 100%;
     width: 100%;
+    max-width: 1200px;
 }
-.result-card {
+
+.mouse-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 16px;
+    overflow: hidden;
 }
-.result-ours { border-color: var(--green); }
-.result-baseline { border-color: var(--red); }
-.result-label {
+
+.mouse-card canvas {
+    flex: 1;
+    width: 100%;
+    cursor: crosshair;
+}
+
+.mouse-title {
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--text-secondary);
-    margin-bottom: 12px;
-}
-.result-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 0;
-    font-size: 14px;
-    color: var(--text-secondary);
+    padding: 10px 14px;
     border-bottom: 1px solid var(--border);
+    font-weight: 500;
 }
-.result-row:last-child { border-bottom: none; }
-.result-value { font-weight: 500; }
 
-/* ── Scene navigation ── */
-#scene-nav {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 20px;
-    height: 48px;
-    background: var(--bg-card);
-    border-top: 1px solid var(--border);
-    flex-shrink: 0;
-}
-.scene-dots {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-.scene-dots .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--border);
-    transition: background 0.3s;
-    cursor: pointer;
-}
-.scene-dots .dot.active {
-    background: var(--green);
-}
-.scene-nav-label {
+.mouse-subtitle {
     font-size: 12px;
     color: var(--text-secondary);
-    font-family: var(--font-mono);
+    padding: 8px 14px;
+    text-align: center;
+    min-height: 32px;
+    transition: opacity 0.3s;
 }
-#prev-btn, #next-btn {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text-primary);
-    padding: 6px 16px;
-    border-radius: 6px;
-    font-size: 13px;
-    cursor: pointer;
-    font-family: var(--font-main);
-    transition: background 0.2s, opacity 0.2s;
-}
-#prev-btn:hover, #next-btn:hover {
-    background: rgba(236,240,241,0.05);
-}
-#prev-btn:disabled, #next-btn:disabled {
-    opacity: 0.3;
-    cursor: default;
-}
-.nav-buttons {
-    display: flex;
-    gap: 8px;
-}
-
-/* Loading overlay */
-#loading {
-    position: fixed;
-    inset: 0;
-    background: var(--bg-primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-    flex-direction: column;
-    gap: 16px;
-}
-#loading .spinner {
-    width: 32px;
-    height: 32px;
-    border: 3px solid var(--border);
-    border-top-color: var(--green);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-#loading p { color: var(--text-secondary); font-size: 14px; }
 </style>
 </head>
 <body>
 
-<!-- Loading -->
-<div id="loading">
-    <div class="spinner"></div>
-    <p>Loading neural data…</p>
-</div>
-
-<!-- Status bar (always visible) -->
+<!-- Status Bar -->
 <div id="status-bar">
     <div class="left">
-        <div class="dot"></div>
-        <span class="title">NEURAL SIGNAL MONITOR</span>
+        <div class="pulse-dot"></div>
+        <span class="title">Neural Signal Monitor</span>
     </div>
     <div class="right">
-        <span>32 CH</span>
-        <span>|</span>
-        <span>30 kHz</span>
-        <span>|</span>
-        <span id="elapsed">00:00</span>
+        <span class="meta">32 CH</span>
+        <span class="divider">|</span>
+        <span class="meta">30 kHz</span>
+        <span class="divider">|</span>
+        <label class="toggle-inline">
+            <span>Inject</span>
+            <input type="checkbox" id="inject-toggle">
+            <span class="toggle-track-sm"></span>
+        </label>
+        <label class="toggle-inline">
+            <span>Highlight</span>
+            <input type="checkbox" id="highlight-toggle" checked>
+            <span class="toggle-track-sm"></span>
+        </label>
     </div>
 </div>
 
-<!-- ═══════════════════════════════════════ -->
-<!-- SCENE 1: Intro                         -->
-<!-- ═══════════════════════════════════════ -->
-<div id="scene-intro" class="scene">
-    <div id="intro-signal">
-        <div class="canvas-wrap">
-            <span class="label label-raw">Raw broadband — ch 0</span>
-            <canvas id="canvas-intro"></canvas>
-        </div>
+<!-- Three Signal Traces -->
+<div id="traces">
+    <div class="trace-wrap">
+        <span class="trace-label" style="color:var(--text-secondary);">Raw broadband — ch 0</span>
+        <canvas id="canvas-raw"></canvas>
     </div>
-    <div class="scene-text">
-        <h1>This is a live neural signal from a brain-computer interface.</h1>
-        <p>32 electrodes · 30,000 samples per second</p>
+    <div class="trace-wrap" id="trace-ours">
+        <span class="trace-label" style="color:var(--green);">Ours (MAD + FFT) — ch 0</span>
+        <span class="trace-stats" id="stats-ours">P: —  R: —</span>
+        <canvas id="canvas-ours"></canvas>
     </div>
-</div>
-
-<!-- ═══════════════════════════════════════ -->
-<!-- SCENE 2: Artifacts                     -->
-<!-- ═══════════════════════════════════════ -->
-<div id="scene-artifacts" class="scene" style="display:none;">
-    <div id="artifacts-signal">
-        <div class="canvas-wrap">
-            <span class="label label-raw">Raw broadband — ch 0</span>
-            <canvas id="canvas-artifacts"></canvas>
-        </div>
-    </div>
-    <div id="artifacts-gallery">
-        <h3>Artifact types</h3>
-        <div class="gallery-card">
-            <canvas id="gallery-spike" width="160" height="50"></canvas>
-            <div class="name">Spike</div>
-            <div class="cause">Jaw clench, stim pulse, or cable movement</div>
-        </div>
-        <div class="gallery-card">
-            <canvas id="gallery-60hz" width="160" height="50"></canvas>
-            <div class="name">60 Hz Noise</div>
-            <div class="cause">Power line electromagnetic interference</div>
-        </div>
-        <div class="gallery-card">
-            <canvas id="gallery-flatline" width="160" height="50"></canvas>
-            <div class="name">Flatline</div>
-            <div class="cause">Electrode loses tissue contact</div>
-        </div>
-    </div>
-    <div id="artifacts-text">
-        <p>"Muscle twitches, power lines, and loose electrodes constantly corrupt the signal."</p>
+    <div class="trace-wrap" id="trace-baseline">
+        <span class="trace-label" style="color:var(--red);">Z-score baseline (5σ) — ch 0</span>
+        <span class="trace-stats" id="stats-baseline">P: —  R: —</span>
+        <canvas id="canvas-baseline"></canvas>
     </div>
 </div>
 
-<!-- ═══════════════════════════════════════ -->
-<!-- SCENE 3: Impact (speller only)         -->
-<!-- ═══════════════════════════════════════ -->
-<div id="scene-impact" class="scene" style="display:none;">
-    <div class="scene-text" style="padding-bottom:4px;">
-        <h1>A patient with ALS is trying to type a message.</h1>
+<!-- Expandable Mouse Panel -->
+<div id="mouse-panel" class="collapsed">
+    <div id="mouse-toggle-bar" onclick="toggleMousePanel()">
+        <span id="mouse-toggle-icon">▲</span>
+        <span id="mouse-toggle-text">Show patient impact demo</span>
+        <span class="key-hint">[p]</span>
     </div>
-    <div id="impact-speller-section">
-        <div class="speller-panel" id="speller-left-panel">
-            <div class="panel-title">Without rejection</div>
-            <div class="grid-container" id="grid-left"></div>
-            <div class="output-text" id="output-left"><span class="cursor-blink"></span></div>
-        </div>
-        <div class="speller-panel" id="speller-right-panel">
-            <div class="panel-title">With rejection</div>
-            <div class="grid-container" id="grid-right"></div>
-            <div class="output-text" id="output-right"><span class="cursor-blink"></span></div>
-        </div>
-    </div>
-</div>
-
-<!-- ═══════════════════════════════════════ -->
-<!-- SCENE 4: Solution (full dashboard)     -->
-<!-- ═══════════════════════════════════════ -->
-<div id="scene-solution" class="scene" style="display:none;">
-    <div id="solution-main">
-        <div id="solution-signal-panel">
-            <div class="canvas-wrap" style="flex:1;">
-                <span class="label label-raw">Raw broadband — ch 0</span>
-                <canvas id="canvas-solution-raw"></canvas>
+    <div id="mouse-content">
+        <div class="mouse-panels-row">
+            <div class="mouse-card">
+                <div class="mouse-title" style="color:var(--red);">Without artifact rejection</div>
+                <canvas id="mouse-left-canvas"></canvas>
+                <div class="mouse-subtitle" id="mouse-left-sub">Move your mouse anywhere</div>
             </div>
-            <div class="canvas-wrap" style="flex:1;">
-                <span class="label label-clean">Cleaned output — ch 0</span>
-                <canvas id="canvas-solution-clean"></canvas>
+            <div class="mouse-card">
+                <div class="mouse-title" style="color:var(--green);">With artifact rejection</div>
+                <canvas id="mouse-right-canvas"></canvas>
+                <div class="mouse-subtitle" id="mouse-right-sub">Move your mouse anywhere</div>
             </div>
         </div>
-        <div id="solution-sidebar">
-            <div id="stats-grid">
-                <div class="stat-card stat-green">
-                    <div class="stat-label">Precision</div>
-                    <div class="stat-value" id="stat-precision">—</div>
-                </div>
-                <div class="stat-card stat-green">
-                    <div class="stat-label">Recall</div>
-                    <div class="stat-value" id="stat-recall">—</div>
-                </div>
-                <div class="stat-card stat-orange">
-                    <div class="stat-label">Artifacts</div>
-                    <div class="stat-value" id="stat-artifacts">0</div>
-                </div>
-                <div class="stat-card stat-blue">
-                    <div class="stat-label">Clean Signal</div>
-                    <div class="stat-value" id="stat-clean">100%</div>
-                </div>
-            </div>
-            <div id="toggle-wrap">
-                <span class="toggle-label">Inject artifacts</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="inject-toggle">
-                    <div class="toggle-track"></div>
-                    <div class="toggle-thumb"></div>
-                </label>
-            </div>
-        </div>
-    </div>
-    <div id="solution-event-log"></div>
-</div>
-
-<!-- ═══════════════════════════════════════ -->
-<!-- SCENE 5: Results                       -->
-<!-- ═══════════════════════════════════════ -->
-<div id="scene-results" class="scene" style="display:none;">
-    <!-- Pipeline diagram -->
-    <div class="pipeline-flow">
-        <span class="pipeline-node">Electrodes</span>
-        <span class="pipeline-arrow">→</span>
-        <span class="pipeline-node">Broadband source</span>
-        <span class="pipeline-arrow">→</span>
-        <span class="pipeline-node pipeline-highlight">Artifact reject</span>
-        <span class="pipeline-arrow">→</span>
-        <span class="pipeline-node">Decoder</span>
-        <span class="pipeline-arrow">→</span>
-        <span class="pipeline-node">Patient output</span>
-    </div>
-
-    <!-- Results comparison -->
-    <div class="results-grid">
-        <div class="result-card result-ours">
-            <div class="result-label">Our system (MAD + FFT)</div>
-            <div class="result-row">
-                <span>Artifacts caught</span>
-                <span class="result-value" style="color:var(--green);">83%</span>
-            </div>
-            <div class="result-row">
-                <span>Clean signal preserved</span>
-                <span class="result-value" style="color:var(--green);">85%</span>
-            </div>
-            <div class="result-row">
-                <span>Configuration needed</span>
-                <span class="result-value" style="color:var(--green);">None</span>
-            </div>
-        </div>
-        <div class="result-card result-baseline">
-            <div class="result-label">Fixed threshold (standard)</div>
-            <div class="result-row">
-                <span>Artifacts caught</span>
-                <span class="result-value" style="color:var(--red);">0%</span>
-            </div>
-            <div class="result-row">
-                <span>Clean signal preserved</span>
-                <span class="result-value" style="color:var(--red);">0%</span>
-            </div>
-            <div class="result-row">
-                <span>Configuration needed</span>
-                <span class="result-value" style="color:var(--red);">Manual</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Value prop -->
-    <p style="font-size:18px; color:var(--text-secondary); text-align:center; max-width:600px; line-height:1.5;">
-        Drop-in artifact rejection for the Synapse neural interface platform.<br>
-        Zero configuration. Real-time. Open source.
-    </p>
-
-    <!-- Team -->
-    <div style="font-size:14px; color:var(--text-secondary); text-align:center;">
-        <p style="margin-bottom:4px;"><strong style="color:var(--text-primary);">James Mu</strong> (Duke) · <strong style="color:var(--text-primary);">Derek Mu</strong> (CMU)</p>
-        <p style="font-family:var(--font-mono); color:var(--blue);">github.com/jamesmu03/artifact-reject</p>
-    </div>
-</div>
-
-<!-- ═══════════════════════════════════════ -->
-<!-- Scene Navigation                       -->
-<!-- ═══════════════════════════════════════ -->
-<div id="scene-nav">
-    <div class="scene-dots">
-        <span class="dot active" onclick="showScene(0)"></span>
-        <span class="dot" onclick="showScene(1)"></span>
-        <span class="dot" onclick="showScene(2)"></span>
-        <span class="dot" onclick="showScene(3)"></span>
-        <span class="dot" onclick="showScene(4)"></span>
-    </div>
-    <span class="scene-nav-label" id="scene-label">1 / 5</span>
-    <div class="nav-buttons">
-        <button id="prev-btn" onclick="prevScene()" disabled>← Back</button>
-        <button id="next-btn" onclick="nextScene()">Next →</button>
     </div>
 </div>
 
 <script>
-// ══════════════════════════════════════════
-// DATA & STATE
-// ══════════════════════════════════════════
-
+// ===== Data & State =====
 let cleanData = [];
 let artifactData = [];
-let injectEnabled = false;
 let currentIndex = 0;
+let injectEnabled = false;
+let highlightEnabled = true;
+
+// Buffers
+const DISPLAY_POINTS = 1200;
+const MAX_AMPLITUDE = 800;
+let signalBuffer = [];
+let oursCleanBuffer = [];
+let baselineCleanBuffer = [];
+let artifactTypeBuffer = [];
+let oursHitBuffer = [];
+let baselineHitBuffer = [];
+
+// Smooth scrolling
+let tickIntervalMs = 400;
+let tickTimer = null;
+let pendingPoints = [];
+let pendingOursFlags = [];
+let pendingBaseFlags = [];
+let pendingTypeFlags = [];
 
 // Stats
-let stats = { total: 0, oursTP: 0, oursFP: 0, oursFN: 0, artifactsDetected: 0 };
-
-// Signal buffers
-const DISPLAY_POINTS = 2000;
-const MAX_AMPLITUDE = 600;
-let signalBuffer = [];
-let cleanBuffer = [];
-let artifactFlags = [];
-
-// Speller
-const GRID_CHARS = [
-    'A','B','C','D','E','F',
-    'G','H','I','J','K','L',
-    'M','N','O','P','Q','R',
-    'S','T','U','V','W','X',
-    'Y','Z','.',' ','⌫','✓'
-];
-const DISPLAY_CHARS = [
-    'A','B','C','D','E','F',
-    'G','H','I','J','K','L',
-    'M','N','O','P','Q','R',
-    'S','T','U','V','W','X',
-    'Y','Z','.','␣','⌫','✓'
-];
-const TARGET_WORDS = ["HELP", "WATER", "YES", "PAIN"];
-
-let spellerState = {
-    wordIndex: 0,
-    charIndex: 0,
-    ticksThisChar: 0,
-    ticksPerChar: 15,
-    leftOutput: "",
-    rightOutput: "",
-    leftCursorPos: {r: 0, c: 0},
-    rightCursorPos: {r: 0, c: 0},
-    leftArtifactOffset: null,
-    paused: false,
+let stats = {
+    total: 0,
+    oursTP: 0, oursFP: 0, oursFN: 0,
+    baseTP: 0, baseFP: 0, baseFN: 0,
+    oursDetected: 0,
+    baseDetected: 0,
 };
 
-// Event log
-let eventLog = [];
-let lastEventTime = 0;
+// Mouse panel
+let mousePanelExpanded = false;
+let mouseX = 0, mouseY = 0;
+let mouseActive = false;
+let leftTrail = [];
+let rightTrail = [];
+const MAX_TRAIL = 300;
 
-// Timer
-let startTime = null;
+// Artifact highlight colors
+const ARTIFACT_COLORS = {
+    spike:    'rgba(231, 76, 60, 0.15)',
+    '60hz':   'rgba(230, 126, 34, 0.15)',
+    flatline: 'rgba(241, 196, 15, 0.15)',
+};
+const OURS_SHADE = 'rgba(46, 204, 113, 0.15)';
+const BASE_SHADE = 'rgba(231, 76, 60, 0.15)';
 
-// Playback
-let tickTimer = null;
-let tickIntervalMs = 500;
-let elapsedTimer = null;
 
-// ══════════════════════════════════════════
-// SCENE MANAGER
-// ══════════════════════════════════════════
+// ===== Data Loading =====
+async function loadData() {
+    try {
+        const [cleanRes, artifactRes] = await Promise.all([
+            fetch('data_clean.json'),
+            fetch('data_artifacts.json'),
+        ]);
+        cleanData = await cleanRes.json();
+        artifactData = await artifactRes.json();
+        console.log(`Loaded ${cleanData.length} clean + ${artifactData.length} artifact windows`);
+        startPlayback();
+    } catch (err) {
+        console.error('Failed to load data:', err);
+    }
+}
 
-const SCENES = ['intro', 'artifacts', 'impact', 'solution', 'results'];
-let currentScene = 0;
 
-function showScene(index) {
-    currentScene = index;
-    SCENES.forEach((id, i) => {
-        document.getElementById('scene-' + id).style.display = i === index ? '' : 'none';
+// ===== Canvas Sizing =====
+function resizeCanvases() {
+    const canvases = ['canvas-raw', 'canvas-ours', 'canvas-baseline'];
+    canvases.forEach(id => {
+        const c = document.getElementById(id);
+        if (!c) return;
+        const rect = c.parentElement.getBoundingClientRect();
+        c.width = rect.width * devicePixelRatio;
+        c.height = rect.height * devicePixelRatio;
     });
-
-    // Update dots
-    const dots = document.querySelectorAll('.scene-dots .dot');
-    dots.forEach((d, i) => d.classList.toggle('active', i === index));
-
-    // Update label
-    document.getElementById('scene-label').textContent = `${index + 1} / ${SCENES.length}`;
-
-    // Update nav buttons
-    document.getElementById('prev-btn').disabled = index === 0;
-    document.getElementById('next-btn').disabled = index === SCENES.length - 1;
-    document.getElementById('next-btn').textContent = index === SCENES.length - 1 ? 'Done' : 'Next →';
-
-    // Scene-specific init
-    onSceneEnter(SCENES[index]);
+    resizeMouseCanvases();
 }
 
-function nextScene() {
-    if (currentScene < SCENES.length - 1) showScene(currentScene + 1);
+function resizeMouseCanvases() {
+    ['mouse-left-canvas', 'mouse-right-canvas'].forEach(id => {
+        const c = document.getElementById(id);
+        if (!c) return;
+        const rect = c.parentElement.getBoundingClientRect();
+        c.width = rect.width * devicePixelRatio;
+        c.height = rect.height * devicePixelRatio;
+    });
 }
 
-function prevScene() {
-    if (currentScene > 0) showScene(currentScene - 1);
-}
 
-// Keyboard navigation
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowRight' || e.key === ' ') {
-        e.preventDefault();
-        nextScene();
-    }
-    if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        prevScene();
-    }
-    // 'i' key for inject toggle (scene 4 only)
-    if ((e.key === 'i' || e.key === 'I') && SCENES[currentScene] === 'solution') {
-        const toggleEl = document.getElementById('inject-toggle');
-        toggleEl.checked = !toggleEl.checked;
-        onToggle();
-    }
-});
-
-// ══════════════════════════════════════════
-// SCENE ENTER LOGIC
-// ══════════════════════════════════════════
-
-function onSceneEnter(sceneName) {
-    stopPlayback();
-
-    switch(sceneName) {
-        case 'intro':
-            injectEnabled = false;
-            tickIntervalMs = 500;
-            resetStats();
-            resetSignalBuffers();
-            currentIndex = 0;
-            resizeCanvasById('canvas-intro');
-            startPlayback();
-            break;
-
-        case 'artifacts':
-            injectEnabled = true;
-            tickIntervalMs = 500;
-            resetSignalBuffers();
-            currentIndex = 0;
-            resizeCanvasById('canvas-artifacts');
-            drawGallery();
-            startPlayback();
-            break;
-
-        case 'impact':
-            injectEnabled = true;
-            tickIntervalMs = 500;
-            spellerState.ticksPerChar = 8;
-            resetSpeller();
-            currentIndex = 0;
-            startPlayback();
-            break;
-
-        case 'solution':
-            injectEnabled = false;
-            document.getElementById('inject-toggle').checked = false;
-            tickIntervalMs = 500;
-            resetStats();
-            resetSignalBuffers();
-            currentIndex = 0;
-            resizeCanvasById('canvas-solution-raw');
-            resizeCanvasById('canvas-solution-clean');
-            startPlayback();
-            break;
-
-        case 'results':
-            // Static scene
-            break;
-    }
-}
-
-function resetSignalBuffers() {
-    signalBuffer = [];
-    cleanBuffer = [];
-    artifactFlags = [];
-}
-
-function resetStats() {
-    stats = { total: 0, oursTP: 0, oursFP: 0, oursFN: 0, artifactsDetected: 0 };
-    eventLog = [];
-    lastEventTime = 0;
-    renderStats();
-    renderEventLog();
-}
-
-function resetSpeller() {
-    spellerState.wordIndex = 0;
-    spellerState.charIndex = 0;
-    spellerState.ticksThisChar = 0;
-    spellerState.leftOutput = "";
-    spellerState.rightOutput = "";
-    spellerState.leftCursorPos = {r: 0, c: 0};
-    spellerState.rightCursorPos = {r: 0, c: 0};
-    spellerState.leftArtifactOffset = null;
-    spellerState.paused = false;
-    renderOutputText();
-}
-
-function startPlayback() {
-    stopPlayback();
-    startTime = Date.now();
-    tickTimer = setInterval(tick, tickIntervalMs);
-}
-
-function stopPlayback() {
-    if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
-}
-
-// ══════════════════════════════════════════
-// TOGGLE
-// ══════════════════════════════════════════
-
-function onToggle() {
-    const toggleEl = document.getElementById('inject-toggle');
-    injectEnabled = toggleEl.checked;
-    currentIndex = 0;
-    resetStats();
-    resetSignalBuffers();
-    resetSpeller();
-}
-
-// ══════════════════════════════════════════
-// CANVAS MANAGEMENT
-// ══════════════════════════════════════════
-
-function resizeCanvasById(id) {
-    const canvas = document.getElementById(id);
-    if (!canvas) return;
-    const wrap = canvas.closest('.canvas-wrap');
-    if (!wrap) return;
-    const rect = wrap.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-}
-
-function resizeAllVisibleCanvases() {
-    const scene = SCENES[currentScene];
-    if (scene === 'intro') resizeCanvasById('canvas-intro');
-    if (scene === 'artifacts') resizeCanvasById('canvas-artifacts');
-    if (scene === 'solution') {
-        resizeCanvasById('canvas-solution-raw');
-        resizeCanvasById('canvas-solution-clean');
-    }
-}
-
-window.addEventListener('resize', resizeAllVisibleCanvases);
-
-// ══════════════════════════════════════════
-// TICK
-// ══════════════════════════════════════════
-
-function tick() {
-    const data = injectEnabled ? artifactData : cleanData;
-    if (!data.length) return;
-    const win = data[currentIndex % data.length];
-
-    // Stats
+// ===== Stats =====
+function updateStatsFromWindow(win) {
     stats.total++;
-    const groundTruth = win.injected_type !== null;
-    if (groundTruth) {
+    const gt = win.injected_type !== null;
+    if (gt) {
         if (win.ours_hit) stats.oursTP++; else stats.oursFN++;
+        if (win.baseline_hit) stats.baseTP++; else stats.baseFN++;
     } else {
         if (win.ours_hit) stats.oursFP++;
+        if (win.baseline_hit) stats.baseFP++;
     }
-    if (win.ours_hit) stats.artifactsDetected++;
+    if (win.ours_hit) stats.oursDetected++;
+    if (win.baseline_hit) stats.baseDetected++;
+}
 
-    // Signal buffer
-    const pts = win.signal_ch0;
-    signalBuffer.push(...pts);
-    if (signalBuffer.length > DISPLAY_POINTS) signalBuffer = signalBuffer.slice(-DISPLAY_POINTS);
+function updateStats() {
+    const oursPrec = (stats.oursTP + stats.oursFP > 0)
+        ? ((stats.oursTP / (stats.oursTP + stats.oursFP)) * 100).toFixed(0) + '%' : '—';
+    const oursRec = (stats.oursTP + stats.oursFN > 0)
+        ? ((stats.oursTP / (stats.oursTP + stats.oursFN)) * 100).toFixed(0) + '%' : '—';
+    document.getElementById('stats-ours').textContent = `P: ${oursPrec}  R: ${oursRec}`;
 
-    // Artifact flag buffer
-    const flags = new Array(pts.length).fill(groundTruth);
-    artifactFlags.push(...flags);
-    if (artifactFlags.length > DISPLAY_POINTS) artifactFlags = artifactFlags.slice(-DISPLAY_POINTS);
+    const basePrec = (stats.baseTP + stats.baseFP > 0)
+        ? ((stats.baseTP / (stats.baseTP + stats.baseFP)) * 100).toFixed(0) + '%' : '—';
+    const baseRec = (stats.baseTP + stats.baseFN > 0)
+        ? ((stats.baseTP / (stats.baseTP + stats.baseFN)) * 100).toFixed(0) + '%' : '—';
+    document.getElementById('stats-baseline').textContent = `P: ${basePrec}  R: ${baseRec}`;
+}
 
-    // Cleaned buffer
-    if (win.ours_hit) {
-        cleanBuffer.push(...new Array(pts.length).fill(0));
-    } else {
-        cleanBuffer.push(...pts);
-    }
-    if (cleanBuffer.length > DISPLAY_POINTS) cleanBuffer = cleanBuffer.slice(-DISPLAY_POINTS);
 
-    // Scene-specific rendering
-    const scene = SCENES[currentScene];
+// ===== Trace Rendering =====
+function renderTrace(canvasId, buffer, flagBuffer, color, mode) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
 
-    if (scene === 'intro') {
-        renderRawCanvas('canvas-intro', false);
-    }
+    ctx.fillStyle = '#161b22';
+    ctx.fillRect(0, 0, w, h);
 
-    if (scene === 'artifacts') {
-        renderRawCanvas('canvas-artifacts', true);
-    }
+    if (buffer.length < 2) return;
 
-    if (scene === 'impact') {
-        if (!spellerState.paused) {
-            updateCursorSpeller(groundTruth, win.ours_hit);
-        }
-    }
+    const yScale = h / (2 * MAX_AMPLITUDE);
+    const yMid = h / 2;
+    const n = buffer.length;
 
-    if (scene === 'solution') {
-        renderRawCanvas('canvas-solution-raw', true);
-        renderCleanCanvas('canvas-solution-clean');
-        renderStats();
-
-        // Event log (throttled)
-        if (win.ours_hit) {
-            const now = Date.now();
-            if (now - lastEventTime >= 1000) {
-                lastEventTime = now;
-                const reasons = [];
-                if (win.mad_hit) reasons.push('MAD ch=' + win.mad_channels.join(','));
-                if (win.fft_hit) reasons.push('60Hz (' + win.fft_ratio + 'x)');
-                addEvent(reasons.join(' + '), win.injected_type || 'false_positive');
+    // Draw artifact/detection shading
+    if (highlightEnabled && flagBuffer.length === n) {
+        let i = 0;
+        while (i < n) {
+            if (mode === 'raw') {
+                // Shade by artifact type
+                const t = flagBuffer[i];
+                if (t !== null && ARTIFACT_COLORS[t]) {
+                    const startX = (i / n) * w;
+                    let j = i;
+                    while (j < n && flagBuffer[j] === t) j++;
+                    const endX = (j / n) * w;
+                    ctx.fillStyle = ARTIFACT_COLORS[t];
+                    ctx.fillRect(startX, 0, endX - startX, h);
+                    i = j;
+                    continue;
+                }
+            } else if (mode === 'ours') {
+                if (flagBuffer[i] === true) {
+                    const startX = (i / n) * w;
+                    let j = i;
+                    while (j < n && flagBuffer[j] === true) j++;
+                    const endX = (j / n) * w;
+                    ctx.fillStyle = OURS_SHADE;
+                    ctx.fillRect(startX, 0, endX - startX, h);
+                    i = j;
+                    continue;
+                }
+            } else if (mode === 'baseline') {
+                if (flagBuffer[i] === true) {
+                    const startX = (i / n) * w;
+                    let j = i;
+                    while (j < n && flagBuffer[j] === true) j++;
+                    const endX = (j / n) * w;
+                    ctx.fillStyle = BASE_SHADE;
+                    ctx.fillRect(startX, 0, endX - startX, h);
+                    i = j;
+                    continue;
+                }
             }
+            i++;
         }
     }
 
+    // Draw the trace line
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = devicePixelRatio;
+    for (let i = 0; i < n; i++) {
+        const x = (i / n) * w;
+        const y = yMid - buffer[i] * yScale;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+}
+
+
+// ===== Playback =====
+function tick() {
+    const data = injectEnabled ? artifactData : cleanData;
+    if (data.length === 0) return;
+    const win = data[currentIndex % data.length];
+
+    updateStatsFromWindow(win);
+
+    // Queue points for smooth rendering
+    pendingPoints.push(...win.signal_ch0);
+    pendingOursFlags.push(...new Array(win.signal_ch0.length).fill(win.ours_hit));
+    pendingBaseFlags.push(...new Array(win.signal_ch0.length).fill(win.baseline_hit));
+    pendingTypeFlags.push(...new Array(win.signal_ch0.length).fill(win.injected_type));
+
+    updateStats();
     currentIndex++;
 }
 
-// ══════════════════════════════════════════
-// SIGNAL RENDERING
-// ══════════════════════════════════════════
+function renderLoop() {
+    // Drain a batch of pending points per frame
+    const targetFrames = Math.max(1, Math.round(tickIntervalMs / 16));
+    const batchSize = Math.max(1, Math.ceil(pendingPoints.length / targetFrames));
 
-function renderRawCanvas(canvasId, showArtifacts) {
+    if (pendingPoints.length > 0) {
+        const batch = pendingPoints.splice(0, batchSize);
+        const oursBatch = pendingOursFlags.splice(0, batchSize);
+        const baseBatch = pendingBaseFlags.splice(0, batchSize);
+        const typeBatch = pendingTypeFlags.splice(0, batchSize);
+
+        signalBuffer.push(...batch);
+        oursHitBuffer.push(...oursBatch);
+        baselineHitBuffer.push(...baseBatch);
+        artifactTypeBuffer.push(...typeBatch);
+
+        // Build cleaned buffers
+        const oursCleaned = batch.map((v, i) => oursBatch[i] ? 0 : v);
+        const baseCleaned = batch.map((v, i) => baseBatch[i] ? 0 : v);
+        oursCleanBuffer.push(...oursCleaned);
+        baselineCleanBuffer.push(...baseCleaned);
+
+        // Trim all buffers
+        const max = DISPLAY_POINTS;
+        if (signalBuffer.length > max) {
+            signalBuffer = signalBuffer.slice(-max);
+            oursHitBuffer = oursHitBuffer.slice(-max);
+            baselineHitBuffer = baselineHitBuffer.slice(-max);
+            artifactTypeBuffer = artifactTypeBuffer.slice(-max);
+            oursCleanBuffer = oursCleanBuffer.slice(-max);
+            baselineCleanBuffer = baselineCleanBuffer.slice(-max);
+        }
+    }
+
+    // Render all visible traces
+    renderTrace('canvas-raw', signalBuffer, artifactTypeBuffer, '#ecf0f1', 'raw');
+    renderTrace('canvas-ours', oursCleanBuffer, oursHitBuffer, '#2ecc71', 'ours');
+    renderTrace('canvas-baseline', baselineCleanBuffer, baselineHitBuffer, '#e67e22', 'baseline');
+
+    // Render mouse panels if expanded
+    updateMousePanels();
+
+    requestAnimationFrame(renderLoop);
+}
+
+function startPlayback() {
+    resizeCanvases();
+    tickTimer = setInterval(tick, tickIntervalMs);
+    requestAnimationFrame(renderLoop);
+}
+
+function resetPlayback() {
+    currentIndex = 0;
+    signalBuffer = [];
+    oursCleanBuffer = [];
+    baselineCleanBuffer = [];
+    artifactTypeBuffer = [];
+    oursHitBuffer = [];
+    baselineHitBuffer = [];
+    pendingPoints = [];
+    pendingOursFlags = [];
+    pendingBaseFlags = [];
+    pendingTypeFlags = [];
+    leftTrail = [];
+    rightTrail = [];
+    mouseActive = false;
+    stats = { total: 0, oursTP: 0, oursFP: 0, oursFN: 0, baseTP: 0, baseFP: 0, baseFN: 0, oursDetected: 0, baseDetected: 0 };
+    updateStats();
+    // Reset mouse subtitles
+    const leftSub = document.getElementById('mouse-left-sub');
+    const rightSub = document.getElementById('mouse-right-sub');
+    if (leftSub) { leftSub.textContent = 'Move your mouse anywhere'; leftSub.style.opacity = '1'; }
+    if (rightSub) { rightSub.textContent = 'Move your mouse anywhere'; rightSub.style.opacity = '1'; }
+}
+
+
+// ===== Toggles =====
+function onInjectToggle() {
+    injectEnabled = document.getElementById('inject-toggle').checked;
+    resetPlayback();
+}
+
+function onHighlightToggle() {
+    highlightEnabled = document.getElementById('highlight-toggle').checked;
+}
+
+document.getElementById('inject-toggle').addEventListener('change', onInjectToggle);
+document.getElementById('highlight-toggle').addEventListener('change', onHighlightToggle);
+
+
+// ===== Mouse Panel =====
+function toggleMousePanel() {
+    mousePanelExpanded = !mousePanelExpanded;
+    const panel = document.getElementById('mouse-panel');
+    const icon = document.getElementById('mouse-toggle-icon');
+    const text = document.getElementById('mouse-toggle-text');
+
+    if (mousePanelExpanded) {
+        panel.classList.replace('collapsed', 'expanded');
+        icon.textContent = '▼';
+        text.textContent = 'Hide patient impact demo';
+        document.getElementById('trace-ours').style.display = 'none';
+        document.getElementById('trace-baseline').style.display = 'none';
+        setTimeout(resizeMouseCanvases, 400);
+    } else {
+        panel.classList.replace('expanded', 'collapsed');
+        icon.textContent = '▲';
+        text.textContent = 'Show patient impact demo';
+        document.getElementById('trace-ours').style.display = '';
+        document.getElementById('trace-baseline').style.display = '';
+    }
+}
+
+
+// ===== Mouse Tracking =====
+document.addEventListener('mousemove', (e) => {
+    if (!mouseActive) {
+        mouseActive = true;
+        document.getElementById('mouse-left-sub').style.opacity = '0';
+        document.getElementById('mouse-right-sub').style.opacity = '0';
+        setTimeout(() => {
+            const leftSub = document.getElementById('mouse-left-sub');
+            const rightSub = document.getElementById('mouse-right-sub');
+            leftSub.textContent = injectEnabled ? 'Artifacts disrupting decoder' : 'No artifacts — cursors identical';
+            rightSub.textContent = injectEnabled ? 'Artifacts cleaned — cursor stable' : 'No artifacts — cursors identical';
+            leftSub.style.opacity = '1';
+            rightSub.style.opacity = '1';
+        }, 300);
+    }
+
+    const nx = e.clientX / window.innerWidth;
+    const ny = e.clientY / window.innerHeight;
+
+    const canvas = document.getElementById('mouse-right-canvas');
+    if (canvas) {
+        mouseX = nx * canvas.width;
+        mouseY = ny * canvas.height;
+    }
+});
+
+function getCurrentPlaybackWindow() {
+    const data = injectEnabled ? artifactData : cleanData;
+    if (data.length === 0) return null;
+    // Use most recent window
+    const idx = (currentIndex - 1 + data.length) % data.length;
+    return data[idx];
+}
+
+function updateMousePanels() {
+    if (!mousePanelExpanded) return;
+
+    const currentWin = getCurrentPlaybackWindow();
+    const isArtifact = currentWin
+        && currentWin.injected_type !== null
+        && injectEnabled;
+
+    // Right panel: always smooth
+    const rightPos = { x: mouseX, y: mouseY };
+    rightTrail.push({ ...rightPos, artifact: false, type: null });
+
+    // Left panel: smooth + jitter when artifact active
+    let leftPos = { x: mouseX, y: mouseY };
+    if (isArtifact) {
+        let jitter = 40;
+        if (currentWin.injected_type === 'spike') jitter = 60;
+        if (currentWin.injected_type === '60hz') jitter = 35;
+        if (currentWin.injected_type === 'flatline') jitter = 20;
+        leftPos.x += (Math.random() - 0.5) * jitter * 2;
+        leftPos.y += (Math.random() - 0.5) * jitter * 2;
+    }
+    leftTrail.push({ ...leftPos, artifact: isArtifact, type: isArtifact ? currentWin.injected_type : null });
+
+    // Trim trails
+    if (leftTrail.length > MAX_TRAIL) leftTrail = leftTrail.slice(-MAX_TRAIL);
+    if (rightTrail.length > MAX_TRAIL) rightTrail = rightTrail.slice(-MAX_TRAIL);
+
+    drawMouseCanvas('mouse-left-canvas', leftTrail, leftPos, false);
+    drawMouseCanvas('mouse-right-canvas', rightTrail, rightPos, true);
+}
+
+function drawMouseCanvas(canvasId, trail, currentPos, isClean) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const w = canvas.width;
-    const h = canvas.height;
+    const w = canvas.width, h = canvas.height;
+
     ctx.fillStyle = '#161b22';
     ctx.fillRect(0, 0, w, h);
 
-    if (signalBuffer.length < 2) return;
+    // Draw trail with fading
+    for (let i = 1; i < trail.length; i++) {
+        ctx.beginPath();
+        ctx.moveTo(trail[i-1].x, trail[i-1].y);
+        ctx.lineTo(trail[i].x, trail[i].y);
 
-    const yScale = h / (2 * MAX_AMPLITUDE);
-    const yMid = h / 2;
-    const n = signalBuffer.length;
-
-    // Draw artifact shading
-    if (showArtifacts) {
-        let inArtifact = false;
-        let startX = 0;
-        for (let i = 0; i < n; i++) {
-            const x = (i / n) * w;
-            if (artifactFlags[i] && !inArtifact) { inArtifact = true; startX = x; }
-            if (!artifactFlags[i] && inArtifact) {
-                ctx.fillStyle = 'rgba(231,76,60,0.15)';
-                ctx.fillRect(startX, 0, x - startX, h);
-                inArtifact = false;
+        if (trail[i].artifact) {
+            switch (trail[i].type) {
+                case 'spike':    ctx.strokeStyle = '#e74c3c'; break;
+                case '60hz':     ctx.strokeStyle = '#e67e22'; break;
+                case 'flatline': ctx.strokeStyle = '#f1c40f'; break;
+                default:         ctx.strokeStyle = '#e74c3c'; break;
             }
-        }
-        if (inArtifact) {
-            ctx.fillStyle = 'rgba(231,76,60,0.15)';
-            ctx.fillRect(startX, 0, w - startX, h);
-        }
-    }
-
-    // Draw trace
-    ctx.beginPath();
-    ctx.strokeStyle = '#ecf0f1';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < n; i++) {
-        const x = (i / n) * w;
-        const y = yMid - signalBuffer[i] * yScale;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-}
-
-function renderCleanCanvas(canvasId) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const w = canvas.width;
-    const h = canvas.height;
-    ctx.fillStyle = '#161b22';
-    ctx.fillRect(0, 0, w, h);
-
-    if (cleanBuffer.length < 2) return;
-
-    const yScale = h / (2 * MAX_AMPLITUDE);
-    const yMid = h / 2;
-    const n = cleanBuffer.length;
-
-    ctx.beginPath();
-    ctx.strokeStyle = '#2ecc71';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < n; i++) {
-        const x = (i / n) * w;
-        const y = yMid - cleanBuffer[i] * yScale;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-}
-
-// ══════════════════════════════════════════
-// STATS
-// ══════════════════════════════════════════
-
-function renderStats() {
-    const prec = (stats.oursTP + stats.oursFP > 0)
-        ? ((stats.oursTP / (stats.oursTP + stats.oursFP)) * 100).toFixed(1) + '%'
-        : '—';
-    const rec = (stats.oursTP + stats.oursFN > 0)
-        ? ((stats.oursTP / (stats.oursTP + stats.oursFN)) * 100).toFixed(1) + '%'
-        : '—';
-    const cleanPct = stats.total > 0
-        ? (((stats.total - stats.artifactsDetected) / stats.total) * 100).toFixed(1) + '%'
-        : '100%';
-
-    document.getElementById('stat-precision').textContent = prec;
-    document.getElementById('stat-recall').textContent = rec;
-    document.getElementById('stat-artifacts').textContent = stats.artifactsDetected;
-    document.getElementById('stat-clean').textContent = cleanPct;
-}
-
-// ══════════════════════════════════════════
-// SPELLER
-// ══════════════════════════════════════════
-
-function charToGridPos(ch) {
-    const idx = GRID_CHARS.indexOf(ch);
-    if (idx === -1) return {r: 0, c: 0};
-    return {r: Math.floor(idx / 6), c: idx % 6};
-}
-
-function gridPosToChar(pos) {
-    const r = Math.max(0, Math.min(4, Math.round(pos.r)));
-    const c = Math.max(0, Math.min(5, Math.round(pos.c)));
-    return GRID_CHARS[r * 6 + c];
-}
-
-function lerp(a, b, t) { return a + (b - a) * t; }
-
-function updateCursorSpeller(groundTruth, oursHit) {
-    spellerState.ticksThisChar++;
-
-    const targetWord = TARGET_WORDS[spellerState.wordIndex];
-    const targetChar = targetWord[spellerState.charIndex];
-    const targetPos = charToGridPos(targetChar);
-    const t = spellerState.ticksThisChar / spellerState.ticksPerChar;
-
-    // Right side: smooth approach to target
-    spellerState.rightCursorPos = {
-        r: lerp(spellerState.rightCursorPos.r, targetPos.r, Math.min(1, t * 1.2)),
-        c: lerp(spellerState.rightCursorPos.c, targetPos.c, Math.min(1, t * 1.2)),
-    };
-
-    // Left side: same approach but with artifact jitter
-    if (groundTruth) {
-        spellerState.leftArtifactOffset = {
-            r: (Math.random() - 0.5) * 3,
-            c: (Math.random() - 0.5) * 3,
-        };
-    } else if (spellerState.leftArtifactOffset) {
-        spellerState.leftArtifactOffset.r *= 0.7;
-        spellerState.leftArtifactOffset.c *= 0.7;
-        if (Math.abs(spellerState.leftArtifactOffset.r) < 0.1) {
-            spellerState.leftArtifactOffset = null;
-        }
-    }
-
-    spellerState.leftCursorPos = {
-        r: lerp(spellerState.leftCursorPos.r, targetPos.r, Math.min(1, t * 1.2)),
-        c: lerp(spellerState.leftCursorPos.c, targetPos.c, Math.min(1, t * 1.2)),
-    };
-    if (spellerState.leftArtifactOffset) {
-        spellerState.leftCursorPos.r += spellerState.leftArtifactOffset.r;
-        spellerState.leftCursorPos.c += spellerState.leftArtifactOffset.c;
-    }
-
-    // Update cursor dot positions — use scene-appropriate cell sizing
-    const inImpact = SCENES[currentScene] === 'impact';
-    const cellSize = inImpact ? 50 : 36;
-    const gap = inImpact ? 5 : 4;
-    updateCursorDot('left', spellerState.leftCursorPos, cellSize, gap);
-    updateCursorDot('right', spellerState.rightCursorPos, cellSize, gap);
-
-    // Highlight target cell
-    highlightTarget(targetPos);
-
-    // Selection
-    if (spellerState.ticksThisChar >= spellerState.ticksPerChar) {
-        // Right: always selects target
-        spellerState.rightOutput += targetChar === ' ' ? '␣' : targetChar;
-
-        // Left: selects nearest cell
-        const nearestPos = {r: Math.round(spellerState.leftCursorPos.r), c: Math.round(spellerState.leftCursorPos.c)};
-        const selectedChar = gridPosToChar(nearestPos);
-        const displayChar = selectedChar === ' ' ? '␣' : DISPLAY_CHARS[GRID_CHARS.indexOf(selectedChar)];
-        spellerState.leftOutput += displayChar;
-
-        // Flash cells
-        const targetIdx = targetPos.r * 6 + targetPos.c;
-        flashCell('grid-right', targetIdx, 'flash-green');
-        const nearestIdx = Math.max(0, Math.min(4, Math.round(nearestPos.r))) * 6 + Math.max(0, Math.min(5, Math.round(nearestPos.c)));
-        flashCell('grid-left', nearestIdx, nearestIdx === targetIdx ? 'flash-green' : 'flash-red');
-
-        // Advance
-        spellerState.charIndex++;
-        spellerState.ticksThisChar = 0;
-        spellerState.leftArtifactOffset = null;
-
-        // Word complete?
-        if (spellerState.charIndex >= targetWord.length) {
-            spellerState.paused = true;
-            setTimeout(() => {
-                spellerState.wordIndex = (spellerState.wordIndex + 1) % TARGET_WORDS.length;
-                spellerState.charIndex = 0;
-                spellerState.leftOutput = "";
-                spellerState.rightOutput = "";
-                spellerState.paused = false;
-                renderOutputText();
-            }, 2500);
-        }
-
-        renderOutputText();
-    }
-}
-
-function buildGrid(containerId, side) {
-    const container = document.getElementById(containerId);
-    container.innerHTML = '';
-    for (let i = 0; i < 30; i++) {
-        const cell = document.createElement('div');
-        cell.className = 'grid-cell';
-        cell.textContent = DISPLAY_CHARS[i];
-        cell.dataset.index = i;
-        container.appendChild(cell);
-    }
-    const dot = document.createElement('div');
-    dot.className = 'cursor-dot cursor-' + side;
-    dot.id = 'cursor-' + side;
-    container.appendChild(dot);
-}
-
-function updateCursorDot(side, pos, cellSize, gap) {
-    const dot = document.getElementById('cursor-' + side);
-    if (!dot) return;
-    const stride = cellSize + gap;
-    const clampR = Math.max(0, Math.min(4, pos.r));
-    const clampC = Math.max(0, Math.min(5, pos.c));
-    dot.style.left = (clampC * stride + cellSize / 2 - 4) + 'px';
-    dot.style.top = (clampR * stride + cellSize / 2 - 4) + 'px';
-}
-
-function highlightTarget(pos) {
-    document.querySelectorAll('.grid-cell.target').forEach(c => c.classList.remove('target'));
-    const idx = pos.r * 6 + pos.c;
-    ['grid-left', 'grid-right'].forEach(gid => {
-        const cells = document.getElementById(gid).querySelectorAll('.grid-cell');
-        if (cells[idx]) cells[idx].classList.add('target');
-    });
-}
-
-function flashCell(gridId, idx, cls) {
-    const cells = document.getElementById(gridId).querySelectorAll('.grid-cell');
-    if (!cells[idx]) return;
-    cells[idx].classList.add(cls);
-    setTimeout(() => cells[idx].classList.remove(cls), 300);
-}
-
-function renderOutputText() {
-    const targetWord = TARGET_WORDS[spellerState.wordIndex];
-
-    let rightHtml = '';
-    for (let i = 0; i < spellerState.rightOutput.length; i++) {
-        rightHtml += `<span class="correct">${spellerState.rightOutput[i]}</span>`;
-    }
-    rightHtml += '<span class="cursor-blink"></span>';
-    document.getElementById('output-right').innerHTML = rightHtml;
-
-    let leftHtml = '';
-    const targetDisplay = targetWord.split('').map(c => c === ' ' ? '␣' : c);
-    for (let i = 0; i < spellerState.leftOutput.length; i++) {
-        const isCorrect = i < targetDisplay.length && spellerState.leftOutput[i] === targetDisplay[i];
-        leftHtml += `<span class="${isCorrect ? 'correct' : 'wrong'}">${spellerState.leftOutput[i]}</span>`;
-    }
-    leftHtml += '<span class="cursor-blink"></span>';
-    document.getElementById('output-left').innerHTML = leftHtml;
-}
-
-// ══════════════════════════════════════════
-// EVENT LOG
-// ══════════════════════════════════════════
-
-function addEvent(reason, type) {
-    const elapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
-    const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
-    const ss = String(elapsed % 60).padStart(2, '0');
-    eventLog.unshift({ time: `${mm}:${ss}`, reason, type });
-    if (eventLog.length > 3) eventLog = eventLog.slice(0, 3);
-    renderEventLog();
-}
-
-function renderEventLog() {
-    const el = document.getElementById('solution-event-log');
-    if (!el) return;
-    el.innerHTML = eventLog.map(e => {
-        let cls = 'event-entry';
-        if (e.type === 'spike') cls += ' event-spike';
-        else if (e.type === '60hz') cls += ' event-60hz';
-        else if (e.type === 'flatline') cls += ' event-flatline';
-        else cls += ' event-spike';
-        return `<span class="${cls}">${e.time} ${e.reason} — rejected</span>`;
-    }).join('  ');
-}
-
-// ══════════════════════════════════════════
-// GALLERY
-// ══════════════════════════════════════════
-
-function drawGallery() {
-    drawGallerySpike();
-    drawGallery60Hz();
-    drawGalleryFlatline();
-}
-
-function drawGallerySpike() {
-    const c = document.getElementById('gallery-spike');
-    const ctx = c.getContext('2d');
-    ctx.fillStyle = '#161b22';
-    ctx.fillRect(0, 0, 160, 50);
-    ctx.beginPath();
-    ctx.strokeStyle = '#ecf0f1';
-    ctx.lineWidth = 1;
-    const mid = 25;
-    for (let x = 0; x < 160; x++) {
-        let y = mid + Math.sin(x * 0.15) * 6 + Math.sin(x * 0.4) * 3;
-        if (x >= 78 && x <= 82) y = mid - 20 + (Math.abs(x - 80)) * 10;
-        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(231,76,60,0.2)';
-    ctx.fillRect(70, 0, 20, 50);
-}
-
-function drawGallery60Hz() {
-    const c = document.getElementById('gallery-60hz');
-    const ctx = c.getContext('2d');
-    ctx.fillStyle = '#161b22';
-    ctx.fillRect(0, 0, 160, 50);
-    ctx.beginPath();
-    ctx.strokeStyle = '#ecf0f1';
-    ctx.lineWidth = 1;
-    const mid = 25;
-    for (let x = 0; x < 160; x++) {
-        const base = Math.sin(x * 0.15) * 4 + Math.sin(x * 0.4) * 2;
-        const noise60 = Math.sin(x * 0.8) * 10;
-        const y = mid + base + noise60;
-        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(230,126,34,0.15)';
-    ctx.fillRect(0, 0, 160, 50);
-}
-
-function drawGalleryFlatline() {
-    const c = document.getElementById('gallery-flatline');
-    const ctx = c.getContext('2d');
-    ctx.fillStyle = '#161b22';
-    ctx.fillRect(0, 0, 160, 50);
-    ctx.beginPath();
-    ctx.strokeStyle = '#ecf0f1';
-    ctx.lineWidth = 1;
-    const mid = 25;
-    for (let x = 0; x < 160; x++) {
-        let y;
-        if (x > 55 && x < 105) {
-            y = mid;
         } else {
-            y = mid + Math.sin(x * 0.15) * 6 + Math.sin(x * 0.4) * 3;
+            ctx.strokeStyle = isClean ? '#2ecc71' : '#ecf0f1';
         }
-        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+
+        ctx.globalAlpha = 0.2 + 0.8 * (i / trail.length);
+        ctx.lineWidth = 2 * devicePixelRatio;
+        ctx.stroke();
     }
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(241,196,15,0.15)';
-    ctx.fillRect(55, 0, 50, 50);
+    ctx.globalAlpha = 1;
+
+    // Draw cursor dot
+    const dotR = 6 * devicePixelRatio;
+    const glowR = 12 * devicePixelRatio;
+    ctx.beginPath();
+    ctx.arc(currentPos.x, currentPos.y, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = isClean ? '#2ecc71' : (
+        trail.length > 0 && trail[trail.length-1].artifact ? '#e74c3c' : '#ecf0f1'
+    );
+    ctx.fill();
+
+    // Glow
+    ctx.beginPath();
+    ctx.arc(currentPos.x, currentPos.y, glowR, 0, Math.PI * 2);
+    ctx.fillStyle = isClean ? 'rgba(46,204,113,0.15)' : 'rgba(236,240,241,0.1)';
+    ctx.fill();
 }
 
-// ══════════════════════════════════════════
-// ELAPSED TIMER
-// ══════════════════════════════════════════
 
-function updateElapsed() {
-    if (!startTime) return;
-    const elapsed = Math.floor((Date.now() - startTime) / 1000);
-    const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
-    const ss = String(elapsed % 60).padStart(2, '0');
-    document.getElementById('elapsed').textContent = `${mm}:${ss}`;
-}
-
-// ══════════════════════════════════════════
-// INIT
-// ══════════════════════════════════════════
-
-async function init() {
-    try {
-        const [cleanResp, artifResp] = await Promise.all([
-            fetch('data_clean.json'),
-            fetch('data_artifacts.json')
-        ]);
-        cleanData = await cleanResp.json();
-        artifactData = await artifResp.json();
-    } catch (e) {
-        document.getElementById('loading').innerHTML =
-            '<p style="color:var(--red)">Failed to load data. Run: <code>python3 -m http.server 8000</code> then open <code>localhost:8000</code></p>';
-        return;
+// ===== Keyboard Shortcuts =====
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'p') toggleMousePanel();
+    if (e.key === 'i') {
+        const toggle = document.getElementById('inject-toggle');
+        toggle.checked = !toggle.checked;
+        onInjectToggle();
     }
+});
 
-    // Build grids
-    buildGrid('grid-left', 'left');
-    buildGrid('grid-right', 'right');
 
-    // Toggle handler
-    document.getElementById('inject-toggle').addEventListener('change', onToggle);
+// ===== Window Resize =====
+window.addEventListener('resize', () => {
+    resizeCanvases();
+});
 
-    // Hide loading
-    document.getElementById('loading').style.display = 'none';
 
-    // Elapsed timer
-    setInterval(updateElapsed, 1000);
-
-    // Show first scene
-    showScene(0);
-}
-
-init();
+// ===== Init =====
+loadData();
 </script>
 </body>
 </html>
