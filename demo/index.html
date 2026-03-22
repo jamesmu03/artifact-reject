@@ -109,6 +109,37 @@ body {
     font-size: 12px;
 }
 
+.bar-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: var(--font-main);
+    transition: color 0.2s, border-color 0.2s;
+}
+
+.bar-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+}
+
+.bar-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.bar-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    min-width: 24px;
+    text-align: center;
+    display: inline-block;
+}
+
 /* Inline toggle switches */
 .toggle-inline {
     display: flex;
@@ -323,7 +354,30 @@ body {
     overflow: hidden;
     border: 1px solid var(--border);
     z-index: 15;
-    background: #000;
+    background: var(--bg-card);
+}
+
+#webcam-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-family: var(--font-main);
+}
+
+#webcam-placeholder:hover {
+    color: var(--text-primary);
+}
+
+#webcam-placeholder .cam-icon {
+    font-size: 28px;
+    opacity: 0.5;
 }
 
 #webcam-video {
@@ -513,12 +567,9 @@ body {
     <div class="left">
         <div class="pulse-dot"></div>
         <span class="title">Neural Signal Monitor</span>
+        <span class="meta" style="margin-left:8px;">32 CH · 30 kHz</span>
     </div>
     <div class="right">
-        <span class="meta">32 CH</span>
-        <span class="divider">|</span>
-        <span class="meta">30 kHz</span>
-        <span class="divider">|</span>
         <label class="toggle-inline">
             <span>Inject</span>
             <input type="checkbox" id="inject-toggle">
@@ -530,13 +581,14 @@ body {
             <span class="toggle-track-sm"></span>
         </label>
         <span class="divider">|</span>
-        <button id="pause-btn" onclick="togglePause()" style="background:none;border:1px solid var(--border);color:var(--text-secondary);padding:3px 10px;border-radius:4px;font-size:12px;cursor:pointer;font-family:var(--font-main);">⏸ Pause</button>
+        <div class="bar-btn-group">
+            <button class="bar-btn" onclick="changeSpeed(-1)">−</button>
+            <span id="speed-label" class="bar-label">1×</span>
+            <button class="bar-btn" onclick="changeSpeed(1)">+</button>
+        </div>
+        <button id="pause-btn" class="bar-btn" onclick="togglePause()">⏸ Pause</button>
         <span class="divider">|</span>
-        <button id="theme-btn" onclick="toggleTheme()" style="background:none;border:1px solid var(--border);color:var(--text-secondary);padding:3px 10px;border-radius:4px;font-size:12px;cursor:pointer;font-family:var(--font-main);">☀️ Light</button>
-        <span class="divider">|</span>
-        <button onclick="changeSpeed(-1)" style="background:none;border:1px solid var(--border);color:var(--text-secondary);padding:3px 6px;border-radius:4px;font-size:12px;cursor:pointer;font-family:var(--font-main);">−</button>
-        <span id="speed-label" style="font-size:11px;color:var(--text-secondary);min-width:24px;text-align:center;display:inline-block;">1×</span>
-        <button onclick="changeSpeed(1)" style="background:none;border:1px solid var(--border);color:var(--text-secondary);padding:3px 6px;border-radius:4px;font-size:12px;cursor:pointer;font-family:var(--font-main);">+</button>
+        <button id="theme-btn" class="bar-btn" onclick="toggleTheme()">☀️ Light</button>
     </div>
 </div>
 
@@ -568,9 +620,13 @@ body {
     <div id="mouse-content">
         <!-- Webcam PiP (mirrored) -->
         <div id="webcam-pip">
-            <video id="webcam-video" autoplay playsinline muted></video>
-            <canvas id="webcam-overlay"></canvas>
-            <div id="webcam-status">Starting camera...</div>
+            <div id="webcam-placeholder" onclick="activateWebcam()">
+                <span class="cam-icon">📷</span>
+                <span>Click to enable finger tracking</span>
+            </div>
+            <video id="webcam-video" autoplay playsinline muted style="display:none;"></video>
+            <canvas id="webcam-overlay" style="display:none;"></canvas>
+            <div id="webcam-status" style="display:none;">Starting camera...</div>
         </div>
         <div id="webcam-tooltip" style="position:absolute;top:286px;right:60px;width:280px;text-align:center;font-size:11px;color:var(--text-secondary);line-height:2;">
             ☝️ Point to move cursor<br>🤏 Pinch to click
@@ -916,7 +972,7 @@ function renderLoop(timestamp) {
     }
 
     // Drain pending points at a fixed rate for smooth scrolling
-    if (pendingPoints.length > 0) {
+    if (pendingPoints.length > 0 && !paused) {
         // Fixed drain: ~30 points per window / ~36 frames per tick = ~1 point per frame
         const POINTS_PER_WINDOW = 30;
         const framesPerTick = tickIntervalMs / 16.67;
@@ -1050,8 +1106,7 @@ function toggleMousePanel() {
         document.getElementById('trace-baseline').style.display = 'none';
 
         if (!webcamInitialized) {
-            webcamInitialized = true;
-            initWebcam();
+            enableMouseFallback();
         }
     } else {
         panel.classList.replace('expanded', 'collapsed');
@@ -1071,6 +1126,16 @@ function toggleMousePanel() {
 // ══════════════════════════════════════════
 // WEBCAM + MEDIAPIPE HANDS
 // ══════════════════════════════════════════
+
+function activateWebcam() {
+    if (webcamInitialized) return;
+    webcamInitialized = true;
+    document.getElementById('webcam-placeholder').style.display = 'none';
+    document.getElementById('webcam-video').style.display = '';
+    document.getElementById('webcam-overlay').style.display = '';
+    document.getElementById('webcam-status').style.display = '';
+    initWebcam();
+}
 
 async function initWebcam() {
     const videoEl = document.getElementById('webcam-video');
