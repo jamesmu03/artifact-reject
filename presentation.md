@@ -69,31 +69,28 @@ real-time artifact rejection for brain-computer interfaces
 
 # The problem
 
-![bg right:38% contain](assets/bci/synchron.png)
+![bg right:36% contain](assets/bci/synchron.png)
 
-BCIs decode brain signals into commands—restoring movement and communication for patients with paralysis or ALS.
+BCIs decode brain signals into commands — but artifacts corrupt the signal and cause wrong outputs.
 
-> Corrupted signals produce wrong commands.
-For a patient, that failure matters.
+> For a patient controlling a prosthetic, that failure matters.
 
 ---
 
-# Why it's still a problem
+# The gap
 
 ![bg right:35%](assets/bci/utah_array.jpg)
 
-The standard fix (z-score thresholding) **misses 87% of artifacts.**
+Z-score thresholding **misses 87% of artifacts.**
 
-No standard solution works across labs, devices, or patients.
-
-**We're building the artifact rejection layer for Science Corp's Synapse pipeline, an emerging industry standrd.**
+No standard solution exists across labs or devices.
 
 ---
 
 # Our approach
 
-- **MAD detector** — adaptive threshold per channel, no recalibration
-- **FFT detector** — catches 60 Hz interference z-score can't see
+- **MAD** — adaptive amplitude threshold, no recalibration
+- **FFT** — catches 60 Hz line noise z-score misses
 
 ![w:820px](assets/approach.png)
 
@@ -105,9 +102,9 @@ No standard solution works across labs, devices, or patients.
 |--|--|--|
 | Artifacts detected | **63%** | 13% |
 
-**5× more artifacts caught.** Works out of the box on any Synapse setup.
+**5× more caught.** Drop-in for Science Corp's Synapse.
 
-![w:9000px](assets/results.png)
+![w:1000px](assets/results.png)
 
 ---
 
